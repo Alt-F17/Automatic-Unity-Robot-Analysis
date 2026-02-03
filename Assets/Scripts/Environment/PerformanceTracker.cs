@@ -1,7 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-using AutomaticUnityRobotAnalysis;
 
 /// <summary>
 /// Tracks performance of all robots and identifies the best performer
@@ -189,6 +188,19 @@ public class PerformanceTracker : MonoBehaviour
         if (performanceData.ContainsKey(robot))
         {
             score = CalculatePerformanceScore(performanceData[robot]);
+        }
+        
+        // Visual indicator on the best robot
+        Transform magnet = currentBestRobot.transform.Find("BaseRotation/Shoulder/ShoulderJoint/Forearm/ElbowJoint/Magnet");
+        if (magnet != null)
+        {
+            Renderer renderer = magnet.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = Color.green;  // Green = best!
+                renderer.material.EnableKeyword("_EMISSION");
+                renderer.material.SetColor("_EmissionColor", Color.green);
+            }
         }
         
         Debug.Log($"[PerformanceTracker] NEW BEST PERFORMER: {robotName} (Score: {score:F2})");

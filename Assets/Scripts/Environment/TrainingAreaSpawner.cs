@@ -1,20 +1,24 @@
 using UnityEngine;
 
-/// <summary>
-/// Spawns multiple training areas in a grid for parallel training
-/// </summary>
 public class TrainingAreaSpawner : MonoBehaviour
 {
     [Header("Spawning Settings")]
     [SerializeField] private GameObject trainingAreaPrefab;
     [SerializeField] private int numberOfAreas = 100;
-    [SerializeField] private float spacing = 15f;  // Space between areas
+    [SerializeField] private float spacing = 15f;
     
     [Header("Grid Layout")]
-    [SerializeField] private int areasPerRow = 10;  // 10x10 grid for 100 areas
+    [SerializeField] private int areasPerRow = 10;
     
     void Start()
     {
+        // Add PerformanceTracker if not present
+        if (FindObjectOfType<PerformanceTracker>() == null)
+        {
+            GameObject tracker = new GameObject("PerformanceTracker");
+            tracker.AddComponent<PerformanceTracker>();
+        }
+        
         SpawnTrainingAreas();
     }
     
@@ -30,7 +34,6 @@ public class TrainingAreaSpawner : MonoBehaviour
         
         for (int i = 0; i < numberOfAreas; i++)
         {
-            // Calculate grid position
             int row = i / areasPerRow;
             int col = i % areasPerRow;
             
@@ -40,10 +43,9 @@ public class TrainingAreaSpawner : MonoBehaviour
                 row * spacing
             );
             
-            // Spawn the area
             GameObject area = Instantiate(trainingAreaPrefab, position, Quaternion.identity);
             area.name = $"TrainingArea_{i}";
-            area.transform.parent = transform;  // Organize under this object
+            area.transform.parent = transform;
         }
         
         Debug.Log($"[Spawner] Successfully spawned {numberOfAreas} areas!");

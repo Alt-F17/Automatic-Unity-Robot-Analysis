@@ -131,6 +131,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5703003}
+  - component: {fileID: 5703007}
+  - component: {fileID: 5703006}
+  - component: {fileID: 5703005}
+  - component: {fileID: 5703004}
   m_Layer: 0
   m_Name: RobotArm
   m_TagString: Untagged
@@ -154,6 +158,113 @@ Transform:
   - {fileID: 146655261}
   m_Father: {fileID: 1592214185}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5703004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5703002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a5c9d521e5ef4759a8246a07d52221e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  DecisionPeriod: 5
+  TakeActionsBetweenDecisions: 1
+--- !u!114 &5703005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5703002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: abd47648ac1faac45b55724c6558e09a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  collectData: 1
+  dataDirectory: TrainingData
+  maxEpisodesToRecord: 1000
+  autoExportOnInterval: 1
+  exportInterval: 50
+  exportDetailedPhysics: 0
+  exportInverseKinematics: 0
+  exportStatisticalSummary: 0
+  filePrefix: aura_robot
+--- !u!114 &5703006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5703002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e506743b47ce964386d2a9e55e006c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  agentParameters:
+    maxStep: 0
+  hasUpgradedFromAgentParameters: 1
+  MaxStep: 0
+  baseRotation: {fileID: 146655262}
+  shoulderJoint: {fileID: 760027663}
+  elbowJoint: {fileID: 1422207183}
+  magnet: {fileID: 1101852258}
+  movableBox: {fileID: 1258642305}
+  targetZoneA: {fileID: 1236423605}
+  targetZoneB: {fileID: 1424466984}
+  floor: {fileID: 1630588648}
+  magneticRange: 0.5
+  magneticStrength: 100
+  visualizeMagnetRange: 1
+  maxMotorForce: 100
+  movementSpeed: 50
+  rewardMultiplier: 1
+  usePowerBudget: 1
+  maxPowerBudget: 100
+  currentPower: 100
+  useRandomPositions: 1
+  minDistance: 2
+  maxReach: 4
+  workspaceRadius: 3.5
+  curriculumEpisodeThreshold: 500
+  jointLimitPenalty: -0.001
+  actionSmoothing: 0.15
+  collectDetailedPhysics: 1
+--- !u!114 &5703007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5703002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1c4e0b1822b495aa52bc52839ecb30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_BrainParameters:
+    VectorObservationSize: 30
+    NumStackedVectorObservations: 1
+    m_ActionSpec:
+      m_NumContinuousActions: 3
+      BranchSizes: 
+    VectorActionSize: 03000000
+    VectorActionDescriptions: []
+    VectorActionSpaceType: 1
+    hasUpgradedBrainParametersWithActionSpec: 1
+  m_Model: {fileID: 0}
+  m_InferenceDevice: 0
+  m_BehaviorType: 0
+  m_BehaviorName: RobotArm
+  TeamId: 0
+  m_UseChildSensors: 1
+  m_UseChildActuators: 1
+  m_DeterministicInference: 0
+  m_ObservableAttributeHandling: 0
 --- !u!1 &146655260
 GameObject:
   m_ObjectHideFlags: 0
