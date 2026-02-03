@@ -185,7 +185,9 @@ public class RobotAgent : Agent
         sensor.AddObservation(distanceToBox);
         distanceToTarget = Vector3.Distance(movableBox.position, targetPosition);
         sensor.AddObservation(distanceToTarget);
-        sensor.AddObservation(magnet.position.y - floor.position.y);
+        // Use local floor height relative to this training area
+        float localFloorY = floor != null ? floor.position.y : transform.position.y;
+        sensor.AddObservation(magnet.position.y - localFloorY);
 
         // Joint configuration (6)
         float baseAngle = GetJointAngle(baseRotation);
@@ -211,7 +213,8 @@ public class RobotAgent : Agent
         sensor.AddObservation(Vector3.Distance(movableBox.position, targetPosition) < 0.5f ? 1f : 0f);
         float timeElapsed = Time.time - episodeStartTime;
         sensor.AddObservation(Mathf.Clamp01(timeElapsed / 60f));
-        sensor.AddObservation(movableBox.position.y);
+        // Use local box height relative to this training area's floor
+        sensor.AddObservation(movableBox.position.y - localFloorY);
         float improvementRate = (previousDistanceToTarget - distanceToTarget) / Time.fixedDeltaTime;
         sensor.AddObservation(improvementRate);
         sensor.AddObservation(usePowerBudget ? currentPower / maxPowerBudget : 1f);
@@ -388,7 +391,11 @@ public class RobotAgent : Agent
 
     private void CheckEpisodeEnd()
     {
-        if (movableBox.position.y < floor.position.y - 1f)
+        // Get local floor height for this training area
+        float floorY = floor != null ? floor.position.y : transform.position.y;
+        
+        // Box fell through/off floor
+        if (movableBox.position.y < floorY - 1f)
         {
             AddReward(-10f);
             if (dataCollector != null)
@@ -396,8 +403,10 @@ public class RobotAgent : Agent
                 CollectEpisodeData(false);
             }
             EndEpisode();
+            return;
         }
 
+        // Max time exceeded
         if (Time.time - episodeStartTime > 60f)
         {
             AddReward(-3f);
@@ -406,9 +415,12 @@ public class RobotAgent : Agent
                 CollectEpisodeData(false);
             }
             EndEpisode();
+            return;
         }
 
-        if (magnet.position.y < floor.position.y - 2f || magnet.position.magnitude > 20f)
+        // Magnet went out of bounds - use LOCAL position relative to training area
+        Vector3 localMagnetPos = magnet.position - transform.position;
+        if (magnet.position.y < floorY - 2f || localMagnetPos.magnitude > 20f)
         {
             AddReward(-5f);
             EndEpisode();
