@@ -818,6 +818,16 @@ namespace AutomaticUnityRobotAnalysis
         public int GetFailureCount() => failureCount;
         public bool IsCollecting => collectData && episodesRecorded < maxEpisodesToRecord;
 
+        /// <summary>
+        /// Enable or disable detailed physics data collection
+        /// Called by PerformanceTracker to focus data collection on the best performer
+        /// </summary>
+        public void SetCollectDetailedPhysics(bool enabled)
+        {
+            exportDetailedPhysics = enabled;
+            Debug.Log($"[DataCollector] Detailed physics collection: {(enabled ? "ENABLED" : "DISABLED")}");
+        }
+
         #endregion
 
         #region Context Menu Actions
