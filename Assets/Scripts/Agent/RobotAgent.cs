@@ -6,12 +6,18 @@ using UnityEngine;
 namespace AutomaticUnityRobotAnalysis
 {
     public class RobotAgent : Agent
+
+    #region Serialized Fields & Variables
+
     {
+        // Here is where we link our unity components and set parameters, establishing a bridge
+        // between the Unity environment and the ML-Agents framework Python.
+
         [Header("Robot Joint Components")]
         [SerializeField] private ArticulationBody baseRotation;
         [SerializeField] private ArticulationBody shoulderJoint;
         [SerializeField] private ArticulationBody elbowJoint;
-        [SerializeField] private Transform footMagnet;
+        [SerializeField] private Transform magnet;
 
         [Header("Environment Objects")]
         [SerializeField] private readonly Rigidbody movableBox;
@@ -53,7 +59,8 @@ namespace AutomaticUnityRobotAnalysis
         [Tooltip("Lower = smoother/heavier movement, Higher = snappier/instant movement")]
         [SerializeField] private readonly float actionSmoothing = 0.15f;
 
-        // Internal State
+        // Internal State Variables
+
         private bool isBoxAttached = false;
         private FixedJoint magnetJoint;
         private Vector3 boxStartPosition;
@@ -64,39 +71,48 @@ namespace AutomaticUnityRobotAnalysis
         private int totalAttempts;
         private float distanceToTarget;
         private float previousDistanceToTarget;
-        private Vector3 previousFootPosition;
-        private Vector3 footVelocity;
+        private Vector3 previousMagPosition;
+        private Vector3 magVelocity;
+
+    #endregion
 
         public override void Initialize()
         {
-            boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
+            boxStartPosition = targetZoneA.position + Vector3.up * 0.5f; // set targets
             targetPosition = targetZoneB.position + Vector3.up * 0.5f;
             SetupMagnetCollider();
         }
 
         private void SetupMagnetCollider()
         {
-            SphereCollider magnetCollider = footMagnet.gameObject.GetComponent<SphereCollider>() ?? footMagnet.gameObject.AddComponent<SphereCollider>();
+            // Add a trigger collider to automatically detect when the magnet is near 
+            // the box for automatic attachment
+
+            SphereCollider magnetCollider = magnet.gameObject.GetComponent<SphereCollider>() ?? magnet.gameObject.AddComponent<SphereCollider>();
             magnetCollider.radius = magneticRange;
             magnetCollider.isTrigger = true;
             
-            MagnetTrigger trigger = footMagnet.gameObject.GetComponent<MagnetTrigger>();
-            trigger ??= footMagnet.gameObject.AddComponent<MagnetTrigger>();
+            MagnetTrigger trigger = magnet.gameObject.GetComponent<MagnetTrigger>();
+            trigger ??= magnet.gameObject.AddComponent<MagnetTrigger>();
             trigger.Initialize(this);
         }
 
+        // NEXT 3: 'override': means these replace class methods in the base Agent class
         public override void OnEpisodeBegin()
         {
             if (CompletedEpisodes >= curriculumEpisodeThreshold && !curriculumActive)
+            // Detect curriculum phase change
             {
                 curriculumActive = true;
                 usePowerBudget = true;
                 useRandomPositions = true;
-                Debug.Log("<color=green>Curriculum Phase 2: Power Budget and Randomization Enabled!</color>");
+                Debug.Log("<color=green>Curriculum Phase 2: *Power Budget* and *Random Positions* Enabled!</color>");
             }
 
             DetachBox();
+            // ensure box is detached (default state)
             ResetRobotArm();
+            // reset robot to default pose
 
             if (usePowerBudget) currentPower = maxPowerBudget;
 
@@ -124,12 +140,14 @@ namespace AutomaticUnityRobotAnalysis
             totalEnergyConsumed = 0f;
             totalAttempts++;
             previousDistanceToTarget = Vector3.Distance(movableBox.position, targetPosition);
-            previousFootPosition = footMagnet.position;
+            previousMagPosition = magnet.position;
         }
 
         public override void CollectObservations(VectorSensor sensor)
         {
-            sensor.AddObservation(transform.InverseTransformPoint(footMagnet.position));
+            // potential HUD display values // log data values
+
+            sensor.AddObservation(transform.InverseTransformPoint(magnet.position));
             sensor.AddObservation(transform.InverseTransformPoint(movableBox.position));
             sensor.AddObservation(transform.InverseTransformPoint(targetPosition));
 
@@ -145,6 +163,7 @@ namespace AutomaticUnityRobotAnalysis
 
         public override void OnActionReceived(ActionBuffers actions)
         {
+            // Clamp: ensure actions are within expected range
             float baseControl = Mathf.Clamp(actions.ContinuousActions[0], -1f, 1f);
             float shoulderControl = Mathf.Clamp(actions.ContinuousActions[1], -1f, 1f);
             float elbowControl = Mathf.Clamp(actions.ContinuousActions[2], -1f, 1f);
@@ -155,6 +174,7 @@ namespace AutomaticUnityRobotAnalysis
 
             float energyThisStep = CalculateEnergyConsumption(baseControl, shoulderControl, elbowControl);
             totalEnergyConsumed += energyThisStep;
+            // Less energy consumed = better performance = higher reward
 
             if (usePowerBudget)
             {
@@ -162,17 +182,21 @@ namespace AutomaticUnityRobotAnalysis
                 if (currentPower <= 0f)
                 {
                     AddReward(-5f);
-                    EndEpisode();
+                    EndEpisode(); // kill episode if out of power
                     return;
                 }
             }
 
             CalculateRewards();
-            CheckEpisodeEnd();
+            CheckEpisodeEnd(); // Cleanup episode and failure conditions
         }
 
         private void ApplyJointTorque(ArticulationBody joint, float control)
         {
+            // Apply torque to a joint based on control input and movement speed
+            // Implements action smoothing and joint limit penalties
+            // Used to calculate energy consumption for power budget system
+
             if (joint == null) return;
 
             var drive = joint.xDrive;
@@ -182,7 +206,7 @@ namespace AutomaticUnityRobotAnalysis
 
             if (drive.target <= drive.lowerLimit + 1f || drive.target >= drive.upperLimit - 1f)
             {
-                AddReward(jointLimitPenalty);
+                AddReward(jointLimitPenalty); // Penalize for hitting joint limits
             }
 
             drive.target = Mathf.Clamp(drive.target, drive.lowerLimit, drive.upperLimit);
@@ -199,6 +223,13 @@ namespace AutomaticUnityRobotAnalysis
             if (isBoxAttached)
             {
                 AddReward(0.02f);
+                
+                // Auto-detach when box is hovering over target zone
+                if (currentDistance < 0.8f)
+                {
+                    DetachBox();
+                    AddReward(2.0f); // Reward for successful delivery
+                }
             }
 
             if (currentDistance < 0.5f)
@@ -213,12 +244,14 @@ namespace AutomaticUnityRobotAnalysis
 
         private void CheckEpisodeEnd()
         {
-            if (movableBox.position.y < floor.position.y - 0.5f) { AddReward(-5f); EndEpisode(); }
-            if (Time.time - episodeStartTime > 60f) EndEpisode();
+            if (movableBox.position.y < floor.position.y - 0.5f) { AddReward(-5f); EndEpisode(); } // box fell off/through floor
+            if (Time.time - episodeStartTime > 60f) EndEpisode(); // max time exceeded (other way to kill episode)
         }
 
         private float CalculateEnergyConsumption(float b, float s, float e)
         {
+            // b = base control, s = shoulder control, e = elbow control
+            // returns scaled sum
             return (Mathf.Abs(b) + Mathf.Abs(s) + Mathf.Abs(e)) * 0.01f;
         }
 
@@ -226,6 +259,8 @@ namespace AutomaticUnityRobotAnalysis
 
         private void GenerateRandomPositions()
         {
+            // Circular workspace randomization for box start and target positions
+            // Works arounds the robot base within defined radius, ensuring min/max distance apart
             float startAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
             float startRadius = Random.Range(1.5f, workspaceRadius);
             boxStartPosition = new Vector3(Mathf.Cos(startAngle) * startRadius, 0.75f, Mathf.Sin(startAngle) * startRadius);
@@ -238,7 +273,7 @@ namespace AutomaticUnityRobotAnalysis
             if (targetZoneB) targetZoneB.position = new Vector3(targetPosition.x, 0.05f, targetPosition.z);
         }
 
-        private void ResetRobotArm()
+        private void ResetRobotArm() // Default pose
         {
             ResetJoint(baseRotation, 0f);
             ResetJoint(shoulderJoint, 45f);
@@ -247,6 +282,7 @@ namespace AutomaticUnityRobotAnalysis
 
         private static void ResetJoint(ArticulationBody joint, float angle)
         {
+            // Snap joint to specified angle
             if (!joint) return;
             var drive = joint.xDrive;
             drive.target = angle;
@@ -254,7 +290,7 @@ namespace AutomaticUnityRobotAnalysis
             joint.jointVelocity = new ArticulationReducedSpace(0f);
         }
 
-        public void OnMagnetTriggerEnter(Collider other)
+        public void OnMagnetTriggerEnter(Collider other) // Auto attach box when magnet is close
         {
             if (other.attachedRigidbody == movableBox && !isBoxAttached) AttachBox();
         }
@@ -262,21 +298,22 @@ namespace AutomaticUnityRobotAnalysis
         private void AttachBox()
         {
             if (magnetJoint) return;
-            magnetJoint = footMagnet.gameObject.AddComponent<FixedJoint>();
+            magnetJoint = magnet.gameObject.AddComponent<FixedJoint>(); // link box to magnet
             magnetJoint.connectedBody = movableBox;
             magnetJoint.breakForce = magneticStrength;
             isBoxAttached = true;
             AddReward(1.0f);
         }
 
-        private void DetachBox() { if (magnetJoint) Destroy(magnetJoint); isBoxAttached = false; }
+        private void DetachBox() { if (magnetJoint) Destroy(magnetJoint); isBoxAttached = false; } // unlink box from magnet
 
         void OnGUI()
         {
+            // Simple HUD display for monitoring training progress
             if (!Application.isPlaying) return;
-            GUI.Box(new Rect(10, 10, 250, 150), "Robot Intelligence Status");
+            GUI.Box(new Rect(10, 10, 250, 150), "Robot Arm Dashboard");
             GUILayout.BeginArea(new Rect(20, 35, 230, 140));
-            GUILayout.Label($"Curriculum: {(curriculumActive ? "Phase 2 (Hard)" : "Phase 1 (Easy)")}");
+            GUILayout.Label($"Current Curriculum: {(curriculumActive ? "Phase 2 (Hard)" : "Phase 1 (Easy)")}");
             GUILayout.Label($"Success Rate: {(float)successfulMoves / totalAttempts * 100f:F1}%");
             if (usePowerBudget) GUILayout.Label($"Power: {currentPower / maxPowerBudget * 100f:F1}%");
             GUILayout.Label($"Smoothing: {actionSmoothing:F2}");
@@ -286,6 +323,7 @@ namespace AutomaticUnityRobotAnalysis
 
     public class MagnetTrigger : MonoBehaviour
     {
+        // Simple trigger component to detect when the magnet is near the box, overrides OnTriggerEnter
         private RobotAgent agent;
         public void Initialize(RobotAgent a) => agent = a;
         void OnTriggerEnter(Collider other) => agent?.OnMagnetTriggerEnter(other);

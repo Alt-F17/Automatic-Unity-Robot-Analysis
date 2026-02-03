@@ -6,12 +6,7 @@ using UnityEngine;
 
 namespace AutomaticUnityRobotAnalysis
 {
-    /// <summary>
-    /// Enhanced Data Collector for AURA Project
-    /// Collects comprehensive physics, mechanics, and performance data
-    /// Designed for Probability & Statistics + Mechanics analysis
-    /// Integrates with RobotAgent for ML-Agents training data collection
-    /// </summary>
+    // Data collector script for future analysis and training
     public class DataCollector : MonoBehaviour
     {
         #region Serialized Fields
@@ -66,16 +61,14 @@ namespace AutomaticUnityRobotAnalysis
 
         #endregion
 
-        #region Unity Lifecycle
-
-        private void Awake()
+        private void Awake() // init method
         {
             InitializeCollections();
             currentSessionID = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             SetupDataDirectory();
         }
 
-        private void OnApplicationQuit()
+        private void OnApplicationQuit() // fail-safe export on exit
         {
             if (collectData && episodeDataList.Count > 0)
             {
@@ -83,8 +76,6 @@ namespace AutomaticUnityRobotAnalysis
                 Debug.Log("[DataCollector] Final data export complete.");
             }
         }
-
-        #endregion
 
         #region Initialization
 
