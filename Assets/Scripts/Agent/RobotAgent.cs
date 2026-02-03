@@ -137,16 +137,18 @@ public class RobotAgent : Agent
         if (usePowerBudget) currentPower = maxPowerBudget;
 
         // Generate random positions or use fixed zones
+        // All positions should be relative to this training area's transform
+        Vector3 areaOrigin = transform.position;
+        
         if (useRandomPositions)
         {
             GenerateRandomPositions();
         }
         else
         {
+            // Use the target zones that are children of this training area (already in correct world position)
             boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
             targetPosition = targetZoneB.position + Vector3.up * 0.5f;
-            if (targetZoneA) targetZoneA.position = new Vector3(boxStartPosition.x, 0.05f, boxStartPosition.z);
-            if (targetZoneB) targetZoneB.position = new Vector3(targetPosition.x, 0.05f, targetPosition.z);
         }
 
         if (movableBox != null)
@@ -469,16 +471,21 @@ public class RobotAgent : Agent
     {
         // Circular workspace randomization for box start and target positions
         // Works around the robot base within defined radius, ensuring min/max distance apart
+        // IMPORTANT: Positions are LOCAL to the training area, then converted to world space
+        Vector3 areaOrigin = transform.position;  // This agent's training area origin
+        
         float startAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
         float startRadius = Random.Range(1.5f, workspaceRadius);
-        boxStartPosition = new Vector3(Mathf.Cos(startAngle) * startRadius, 0.75f, Mathf.Sin(startAngle) * startRadius);
+        Vector3 localStartPos = new Vector3(Mathf.Cos(startAngle) * startRadius, 0.75f, Mathf.Sin(startAngle) * startRadius);
+        boxStartPosition = areaOrigin + localStartPos;
 
         float endAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
         float endRadius = Random.Range(1.5f, workspaceRadius);
-        targetPosition = new Vector3(Mathf.Cos(endAngle) * endRadius, 0.75f, Mathf.Sin(endAngle) * endRadius);
+        Vector3 localEndPos = new Vector3(Mathf.Cos(endAngle) * endRadius, 0.75f, Mathf.Sin(endAngle) * endRadius);
+        targetPosition = areaOrigin + localEndPos;
 
-        if (targetZoneA) targetZoneA.position = new Vector3(boxStartPosition.x, 0.05f, boxStartPosition.z);
-        if (targetZoneB) targetZoneB.position = new Vector3(targetPosition.x, 0.05f, targetPosition.z);
+        if (targetZoneA) targetZoneA.position = new Vector3(boxStartPosition.x, areaOrigin.y + 0.05f, boxStartPosition.z);
+        if (targetZoneB) targetZoneB.position = new Vector3(targetPosition.x, areaOrigin.y + 0.05f, targetPosition.z);
     }
 
     private void ResetRobotArm()
