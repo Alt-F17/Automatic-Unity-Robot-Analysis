@@ -1,0 +1,42 @@
+behaviors:
+  RobotArm:
+    trainer_type: ppo
+    
+    hyperparameters:
+      learning_rate: 0.0003
+      learning_rate_schedule: linear
+      batch_size: 2048
+      buffer_size: 20480
+      num_epoch: 3
+      lambd: 0.95
+      beta: 0.005
+      epsilon: 0.2
+    
+    network_settings:
+      hidden_units: 256
+      num_layers: 3
+      normalize: true
+      vis_encode_type: simple
+    
+    reward_signals:
+      extrinsic:
+        strength: 1.0
+        gamma: 0.99
+      curiosity:
+        strength: 0.01
+        gamma: 0.99
+        encoding_size: 256
+    
+    max_steps: 3000000
+    time_horizon: 64
+    summary_freq: 10000
+    keep_checkpoints: 5
+    checkpoint_interval: 50000
+
+engine_settings:
+  width: 84
+  height: 84
+  quality_level: 1
+  time_scale: 20
+  target_frame_rate: -1
+  capture_frame_rate: 60

@@ -1,5 +1,6 @@
-numpy==1.21.2
+# ML-Agents 1.0.0 (compatible with Unity ML-Agents 3.0.0-exp.1)
+# Let pip resolve compatible versions for numpy, protobuf, grpcio
+mlagents==1.0.0
 torch
 torchaudio
 torchvision
-mlagents==0.30.0
