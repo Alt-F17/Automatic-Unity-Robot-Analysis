@@ -482,18 +482,39 @@ public class RobotAgent : Agent
     private void GenerateRandomPositions()
     {
         // Circular workspace randomization for box start and target positions
-        // Works around the robot base within defined radius, ensuring min/max distance apart
+        // Works around the robot base within defined radius
+        // CONSTRAINT: Start and end must be at least 100 degrees apart (both CW and CCW)
+        //             and at the SAME radius from the center
         // IMPORTANT: Positions are LOCAL to the training area, then converted to world space
         Vector3 areaOrigin = transform.position;  // This agent's training area origin
         
-        float startAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-        float startRadius = Random.Range(1.5f, workspaceRadius);
-        Vector3 localStartPos = new Vector3(Mathf.Cos(startAngle) * startRadius, 0.75f, Mathf.Sin(startAngle) * startRadius);
+        // Use the same radius for both start and end positions
+        float sharedRadius = Random.Range(1.5f, workspaceRadius);
+        
+        // Generate start angle randomly
+        float startAngleDeg = Random.Range(0f, 360f);
+        
+        // Generate end angle that is at least 100 degrees away in BOTH directions
+        // This means the end angle must be between 100 and 260 degrees away from start
+        // (100 to 260 ensures at least 100 deg CW and at least 100 deg CCW)
+        float minSeparation = 100f;
+        float maxSeparation = 360f - minSeparation; // 260 degrees
+        float angleSeparation = Random.Range(minSeparation, maxSeparation);
+        
+        // Randomly choose direction (CW or CCW)
+        if (Random.value > 0.5f)
+            angleSeparation = -angleSeparation;
+        
+        float endAngleDeg = startAngleDeg + angleSeparation;
+        
+        // Convert to radians
+        float startAngle = startAngleDeg * Mathf.Deg2Rad;
+        float endAngle = endAngleDeg * Mathf.Deg2Rad;
+        
+        Vector3 localStartPos = new Vector3(Mathf.Cos(startAngle) * sharedRadius, 0.75f, Mathf.Sin(startAngle) * sharedRadius);
         boxStartPosition = areaOrigin + localStartPos;
 
-        float endAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-        float endRadius = Random.Range(1.5f, workspaceRadius);
-        Vector3 localEndPos = new Vector3(Mathf.Cos(endAngle) * endRadius, 0.75f, Mathf.Sin(endAngle) * endRadius);
+        Vector3 localEndPos = new Vector3(Mathf.Cos(endAngle) * sharedRadius, 0.75f, Mathf.Sin(endAngle) * sharedRadius);
         targetPosition = areaOrigin + localEndPos;
 
         if (targetZoneA) targetZoneA.position = new Vector3(boxStartPosition.x, areaOrigin.y + 0.05f, boxStartPosition.z);
