@@ -1,0 +1,5 @@
+numpy==1.21.2
+torch
+torchaudio
+torchvision
+mlagents==0.30.0
