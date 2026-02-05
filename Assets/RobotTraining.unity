@@ -353,9 +353,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   trainingAreaPrefab: {fileID: 5864303913214128156, guid: 5dec8df69649a0842b8e978aaf0a8df9, type: 3}
-  numberOfAreas: 25
+  numberOfAreas: 100
   spacing: 17
-  areasPerRow: 5
+  areasPerRow: 10
 --- !u!4 &1428716643
 Transform:
   m_ObjectHideFlags: 0
