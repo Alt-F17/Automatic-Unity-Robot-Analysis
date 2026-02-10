@@ -262,6 +262,7 @@ public class DataCollector : MonoBehaviour
                     foreach (PhysicsSnapshot snapshot in episodeData.snapshots)
                     {
                         // Calculate derived kinematics values
+                        // just remember that the mass is 1kg 
                         Vector3 magnetPos = snapshot.magnetPosition;
                         Vector2 magnetPos2D = new Vector2(magnetPos.x, magnetPos.z);
                         float reachDistance = magnetPos2D.magnitude;
@@ -270,9 +271,15 @@ public class DataCollector : MonoBehaviour
                         float l1 = Vector3.Distance(shoulderControl.position, elbowControl.position);
                         float l2 = Vector3.Distance(elbowControl.position, magnetPos);
 
+                        float q2 = -Mathf.Acos((magnetPos.x**2 + magnetPos.y**2 - l1**2 - l2**2) / 2 * l1 * l2);
+                        float q1 = Mathf.Atan(magnetPos.y / magnetPos.x) + Mathf.Atan((l2 * mathf.sin(q2)) / (l1 + l2*Mathf.cos(q2)))
+
+
                         SoftJointLimit linearBaseLimit = baseControl.linearLimit;
                         SoftJointLimit linearShoulderLimit = shoulderControl.linearLimit;
                         SoftJointLimit linearElbowLimit = elbowControl.linearLimit;
+
+                        float ShoulderXOffset = shoulderControl.localPosition.x;
                         
                         // Check if joint configuration is physically valid
                         bool configValid = IsJointConfigurationValid(snapshot.shoulderAngle, snapshot.elbowAngle);
@@ -281,6 +288,7 @@ public class DataCollector : MonoBehaviour
                                        $"{magnetPos.x:F4},{magnetPos.y:F4},{magnetPos.z:F4}," +
                                        $"{snapshot.shoulderAngle:F4},{snapshot.elbowAngle:F4},{snapshot.baseAngle:F4}," +
                                        $"{reachDistance:F4},{angleFromBase:F4}," +
+                                       $"{q1}, {q2}" + 
                                        $"{(configValid ? 1 : 0)}");
                     }
                 }
