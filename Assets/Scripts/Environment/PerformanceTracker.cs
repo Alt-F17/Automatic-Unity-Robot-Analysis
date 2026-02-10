@@ -2,10 +2,9 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 
-/// <summary>
-/// Tracks performance of all robots and identifies the best performer
-/// Only the best performer collects detailed physics data
-/// </summary>
+// Tracks performance of all robots and identifies the best performer
+// Only the best performer collects detailed physics data
+
 public class PerformanceTracker : MonoBehaviour
 {
     [Header("Tracking Settings")]
@@ -35,7 +34,7 @@ public class PerformanceTracker : MonoBehaviour
         else
         {
             Destroy(gameObject);
-            return;
+            return; // if exists, dont bother setting it up
         }
         
         allRobots = new List<RobotAgent>();
@@ -45,7 +44,7 @@ public class PerformanceTracker : MonoBehaviour
     
     void Start()
     {
-        // Find all robots in the scene
+        // find all robots in the scene
         RobotAgent[] robots = FindObjectsOfType<RobotAgent>();
         
         foreach (RobotAgent robot in robots)
@@ -55,7 +54,7 @@ public class PerformanceTracker : MonoBehaviour
         
         Debug.Log($"[PerformanceTracker] Registered {allRobots.Count} robots");
         
-        // Initially, first robot collects data
+        // initially, first robot collects data (literally doesnt matter)
         if (allRobots.Count > 0)
         {
             SetBestPerformer(allRobots[0]);
@@ -64,7 +63,7 @@ public class PerformanceTracker : MonoBehaviour
     
     void Update()
     {
-        // Periodically update who's the best
+        // periodically update who's the best
         if (Time.time - lastUpdateTime > updateInterval)
         {
             UpdateBestPerformer();
@@ -72,9 +71,8 @@ public class PerformanceTracker : MonoBehaviour
         }
     }
     
-    /// <summary>
-    /// Register a robot for tracking
-    /// </summary>
+    // register a robot for tracking
+
     public void RegisterRobot(RobotAgent robot)
     {
         if (!allRobots.Contains(robot))
@@ -83,10 +81,9 @@ public class PerformanceTracker : MonoBehaviour
             performanceData[robot] = new RobotPerformance(rollingWindowSize);
         }
     }
-    
-    /// <summary>
-    /// Record episode result for a robot
-    /// </summary>
+
+    // record episode result for a robot
+
     public void RecordEpisode(RobotAgent robot, bool success, float timeTaken, float energyUsed, float accuracy)
     {
         if (!performanceData.ContainsKey(robot))
@@ -96,10 +93,9 @@ public class PerformanceTracker : MonoBehaviour
         
         performanceData[robot].AddEpisode(success, timeTaken, energyUsed, accuracy);
     }
-    
-    /// <summary>
-    /// Determine which robot is currently performing best
-    /// </summary>
+
+    // determine which robot is currently performing best
+
     private void UpdateBestPerformer()
     {
         if (allRobots.Count == 0) return;
@@ -122,14 +118,13 @@ public class PerformanceTracker : MonoBehaviour
         
         if (bestRobot != null && bestRobot != currentBestRobot)
         {
-            SetBestPerformer(bestRobot);
+            SetBestPerformer(bestRobot); // if doesnt ezist or changes, apply change
         }
     }
     
-    /// <summary>
-    /// Calculate overall performance score
-    /// Higher is better
-    /// </summary>
+    // calculate overall performance score
+    // where higher is better
+
     private float CalculatePerformanceScore(RobotPerformance perf)
     {
         if (perf.TotalEpisodes == 0) return 0f;
@@ -139,6 +134,10 @@ public class PerformanceTracker : MonoBehaviour
         // - Speed (inverse of avg time): 25%
         // - Efficiency (inverse of avg energy): 15%
         // - Accuracy: 10%
+
+        // less intense then ML-Agents training scoring
+        // but enough to track best physicd performer on
+        // a valid (completed) run
         
         float successScore = perf.SuccessRate * 50f;
         
@@ -159,13 +158,11 @@ public class PerformanceTracker : MonoBehaviour
         return successScore + speedScore + efficiencyScore + accuracyScore;
     }
     
-    /// <summary>
-    /// Set a robot as the best performer
-    /// This robot will collect detailed data
-    /// </summary>
+    // apply changes as mentioned above
+
     private void SetBestPerformer(RobotAgent robot)
     {
-        // Disable data collection on old best
+        // disable data collection on old best
         if (currentBestRobot != null)
         {
             DataCollector oldCollector = currentBestRobot.GetComponent<DataCollector>();
@@ -175,7 +172,7 @@ public class PerformanceTracker : MonoBehaviour
             }
         }
         
-        // Enable on new best
+        // enable on new best
         currentBestRobot = robot;
         DataCollector newCollector = currentBestRobot.GetComponent<DataCollector>();
         if (newCollector != null)
@@ -190,7 +187,7 @@ public class PerformanceTracker : MonoBehaviour
             score = CalculatePerformanceScore(performanceData[robot]);
         }
         
-        // Visual indicator on the best robot
+        // visual indicator on the best robot
         Transform magnet = currentBestRobot.transform.Find("BaseRotation/Shoulder/ShoulderJoint/Forearm/ElbowJoint/Magnet");
         if (magnet != null)
         {
@@ -206,27 +203,22 @@ public class PerformanceTracker : MonoBehaviour
         Debug.Log($"[PerformanceTracker] NEW BEST PERFORMER: {robotName} (Score: {score:F2})");
     }
     
-    /// <summary>
-    /// Get current best performing robot
-    /// </summary>
     public RobotAgent GetBestPerformer()
     {
         return currentBestRobot;
     }
     
-    /// <summary>
-    /// Check if a specific robot is the current best
-    /// </summary>
     public bool IsBestPerformer(RobotAgent robot)
     {
         return robot == currentBestRobot;
     }
     
     void OnGUI()
+    // GUI for best performer (right side of screen)
     {
         if (!showDebugInfo || currentBestRobot == null) return;
         
-        GUILayout.BeginArea(new Rect(Screen.width - 320, 10, 310, 200));
+        GUILayout.(new Rect(Screen.width - 320, 10, 310, 200));
         
         GUILayout.Label("=== PERFORMANCE TRACKER ===");
         GUILayout.Label($"Best Performer: {currentBestRobot.gameObject.name}");
@@ -246,9 +238,7 @@ public class PerformanceTracker : MonoBehaviour
     }
 }
 
-/// <summary>
-/// Stores performance data for a single robot
-/// </summary>
+// output performance data for a single robot
 public class RobotPerformance
 {
     private Queue<EpisodeResult> recentEpisodes;
@@ -269,7 +259,7 @@ public class RobotPerformance
     
     public void AddEpisode(bool success, float time, float energy, float accuracy)
     {
-        // Add new episode
+        // add new episode
         recentEpisodes.Enqueue(new EpisodeResult
         {
             success = success,
@@ -278,7 +268,7 @@ public class RobotPerformance
             accuracy = accuracy
         });
         
-        // Remove old episodes if over limit
+        // rem old episodes if over limit
         while (recentEpisodes.Count > maxSize)
         {
             recentEpisodes.Dequeue();
@@ -286,7 +276,7 @@ public class RobotPerformance
         
         TotalEpisodes++;
         
-        // Recalculate statistics
+        // recalc statistics
         UpdateStatistics();
     }
     
