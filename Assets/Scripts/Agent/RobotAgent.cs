@@ -288,10 +288,8 @@ public class RobotAgent : Agent
             shoulderControl = shoulderControl,
             elbowControl = elbowControl,
             baseTorque = GetJointTorque(baseRotation), 
-            shoulderTorque = GetJointToque(shoulderControl),
+            shoulderTorque = GetJointTorque(shoulderControl),
             elbowTorque = getJointTorque(elbowControl),
-            shoulderTorque = shoulderTorque, 
-            elbowTorque = elbowTorque,
             basePower = baseVelocity * baseTorque,
             shoulderPower = shoulderVelocity * shoulderTorque,
             elbowPower = elbowVelocity * 
