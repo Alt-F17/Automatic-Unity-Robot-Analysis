@@ -218,7 +218,7 @@ public class PerformanceTracker : MonoBehaviour
     {
         if (!showDebugInfo || currentBestRobot == null) return;
         
-        GUILayout.(new Rect(Screen.width - 320, 10, 310, 200));
+        GUILayout.BeginArea(new Rect(Screen.width - 320, 10, 310, 200));
         
         GUILayout.Label("=== PERFORMANCE TRACKER ===");
         GUILayout.Label($"Best Performer: {currentBestRobot.gameObject.name}");
