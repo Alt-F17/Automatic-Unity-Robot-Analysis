@@ -4,13 +4,10 @@ using UnityEngine;
 using System.IO;
 using System;
 using System.Linq;
-using System.Numerics;
 
-/// <summary>
-/// Enhanced Data Collector for AURA Project
-/// Collects comprehensive physics, mechanics, and performance data
-/// Designed for Probability & Statistics + Mechanics analysis
-/// </summary>
+// Enhanced Data Collector for AURA Project
+// Collects comprehensive physics, mechanics, and performance data
+// Designed for Probability & Statistics + Mechanics analysis
 public class DataCollector : MonoBehaviour
 {
     [Header("Data Collection Settings")]
@@ -46,10 +43,8 @@ public class DataCollector : MonoBehaviour
     private List<float> energySamples;
     private List<float> accuracySamples;
 
-    /// <summary>
-    /// Dynamically enable/disable detailed physics collection
-    /// Called by PerformanceTracker
-    /// </summary>
+    // Dynamically enable/disable detailed physics collection
+    // Called by PerformanceTracker
     public void SetCollectDetailedPhysics(bool enabled)
     {
         exportDetailedPhysics = enabled;
@@ -128,9 +123,7 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export all collected data
-    /// </summary>
+    // Export all collected data
     public void ExportAllData()
     {
         ExportBasicCSV();
@@ -152,10 +145,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export basic episode summary data
-    /// For: Overall performance analysis, success rate trends
-    /// </summary>
+    // Export basic episode summary data
+    // For: Overall performance analysis, success rate trends
     private void ExportBasicCSV()
     {
         if (episodeDataList.Count == 0) return;
@@ -186,10 +177,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export detailed physics snapshots for each episode
-    /// For: Mechanical analysis, trajectory analysis, force calculations
-    /// </summary>
+    // Export detailed physics snapshots for each episode
+    // For: Mechanical analysis, trajectory analysis, force calculations
     private void ExportDetailedPhysicsCSV()
     {
         string filename = $"{filePrefix}_physics_detailed_{currentSessionID}.csv";
@@ -237,10 +226,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export inverse kinematics data
-    /// For: IK calculations, workspace analysis, reachability studies
-    /// </summary>
+    // Export inverse kinematics data
+    // For: IK calculations, workspace analysis, reachability studies
     private void ExportInverseKinematicsCSV()
     {
         string filename = $"{filePrefix}_kinematics_{currentSessionID}.csv";
@@ -302,10 +289,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export statistical summary and probability distributions
-    /// For: Statistical analysis, distribution fitting, hypothesis testing
-    /// </summary>
+    // Export statistical summary and probability distributions
+    // For: Statistical analysis, distribution fitting, hypothesis testing
     private void ExportStatisticalSummary()
     {
         string filename = $"{filePrefix}_statistics_{currentSessionID}.txt";
@@ -410,9 +395,7 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export probability distribution data for histogram creation
-    /// </summary>
+    // Export probability distribution data for histogram creation
     private void ExportProbabilityDistributions()
     {
         string filename = $"{filePrefix}_distributions_{currentSessionID}.csv";
