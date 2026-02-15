@@ -181,12 +181,12 @@ public class RobotAgent : Agent
         Vector3 boxPos = movableBox?.position ?? boxStartPosition;
         Vector3 boxVel = movableBox?.velocity ?? Vector3.zero;
         
-        // position data (9)
+        // position data
         sensor.AddObservation(transform.InverseTransformPoint(magnet.position));
         sensor.AddObservation(transform.InverseTransformPoint(boxPos));
         sensor.AddObservation(transform.InverseTransformPoint(targetPosition));
 
-        // distance data (3)
+        // distance data
         float distanceToBox = Vector3.Distance(magnet.position, boxPos);
         sensor.AddObservation(distanceToBox);
         distanceToTarget = Vector3.Distance(boxPos, targetPosition);
@@ -195,7 +195,7 @@ public class RobotAgent : Agent
         float localFloorY = floor != null ? floor.position.y : transform.position.y;
         sensor.AddObservation(magnet.position.y - localFloorY);
 
-        // joint configuration (6) — actual joint angles, not drive targets
+        // joint configuration: actual joint angles, not drive targets
         float baseAngle = GetJointAngle(baseRotation);
         float shoulderAngle = GetJointAngle(shoulderJoint);
         float elbowAngle = GetJointAngle(elbowJoint);
@@ -206,13 +206,13 @@ public class RobotAgent : Agent
         sensor.AddObservation(shoulderJoint != null ? shoulderJoint.velocity[0] : 0f);
         sensor.AddObservation(elbowJoint != null ? elbowJoint.velocity[0] : 0f);
 
-        // velocity data (6) — transform to local space for training area independence
+        // velocity data: transform to local space for training area independence
         sensor.AddObservation(transform.InverseTransformDirection(boxVel));
         magnetVelocity = (magnet.position - previousMagnetPosition) / Time.fixedDeltaTime;
         sensor.AddObservation(transform.InverseTransformDirection(magnetVelocity));
         previousMagnetPosition = magnet.position;
 
-        // state flags (7)
+        // state flags
         sensor.AddObservation(isBoxAttached ? 1f : 0f);
         sensor.AddObservation(distanceToBox < magneticRange ? 1f : 0f);
         sensor.AddObservation(Vector3.Distance(boxPos, targetPosition) < 0.5f ? 1f : 0f);
@@ -584,7 +584,7 @@ public class RobotAgent : Agent
         if (targetZoneB) targetZoneB.position = new Vector3(targetPosition.x, floorY + 0.05f, targetPosition.z);
     }
 
-    private void ResetRobotArm()
+    private void ResetRobotArm() // reset joints to default positions at episode start
     {
         if (baseRotation != null)
         {
@@ -611,7 +611,7 @@ public class RobotAgent : Agent
         }
     }
 
-    public void OnMagnetTriggerEnter(Collider other)
+    public void OnMagnetTriggerEnter(Collider other) // magnet inbound trigger event handler
     {
         if (other.attachedRigidbody == movableBox && !isBoxAttached)
         {
@@ -634,7 +634,7 @@ public class RobotAgent : Agent
         // debug logging removed to prevent console spam during parallel training
     }
 
-    private void DetachBox()
+    private void DetachBox() // detach the box from the magnet
     {
         if (magnetJoint != null)
         {
@@ -644,10 +644,8 @@ public class RobotAgent : Agent
         isBoxAttached = false;
     }
 
-    /// <summary>
-    /// Called by Unity when the FixedJoint breaks (force/torque exceeded).
-    /// Syncs isBoxAttached state so the agent doesn't think it still has the box.
-    /// </summary>
+    // Called by Unity when the FixedJoint breaks (force/torque exceeded).
+    // Syncs isBoxAttached state so the agent doesn't think it still has the box.
     void OnJointBreak(float breakForce)
     {
         magnetJoint = null;
@@ -655,7 +653,7 @@ public class RobotAgent : Agent
         AddReward(-1f * rewardMultiplier);  // penalty for dropping the box
     }
 
-    void OnDrawGizmos()
+    void OnDrawGizmos() // visualize magnet range 
     {
         if (!visualizeMagnetRange || magnet == null) return;
 
@@ -669,7 +667,7 @@ public class RobotAgent : Agent
         }
     }
 
-    void OnGUI()
+    void OnGUI() // generate simple on-screen HUD for debugging and performance tracking
     {
         if (!Application.isPlaying) return;
 
