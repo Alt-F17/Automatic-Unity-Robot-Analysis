@@ -5,6 +5,8 @@ using System.IO;
 using System;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.Serialization;
+using System.Threading.Tasks.Dataflow;
 
 /// <summary>
 /// Enhanced Data Collector for AURA Project
@@ -13,6 +15,8 @@ using System.Numerics;
 /// </summary>
 public class DataCollector : MonoBehaviour
 {
+    [SerializeField] private RobotAgent robot;
+
     [Header("Data Collection Settings")]
     [SerializeField] private bool collectData = true;
     [SerializeField] private string dataDirectory = "TrainingData";
@@ -208,6 +212,8 @@ public class DataCollector : MonoBehaviour
                                "Box_Pos_X,Box_Pos_Y,Box_Pos_Z," +
                                "Box_Vel_X,Box_Vel_Y,Box_Vel_Z," +
                                "Base_Torque, Shoulder_Torque, Elbow_Torque" +
+                               "Base_Power, Shoulder_Power, Elbow_Power" +
+                               "Base_Energy, Shoulder_Energy, Elbow_Energy" +
                                "Box_Attached,Energy_Step");
 
                 // Write all snapshots from all episodes
@@ -224,6 +230,8 @@ public class DataCollector : MonoBehaviour
                                        $"{snapshot.boxPosition.x:F4},{snapshot.boxPosition.y:F4},{snapshot.boxPosition.z:F4}," +
                                        $"{snapshot.boxVelocity.x:F4},{snapshot.boxVelocity.y:F4},{snapshot.boxVelocity.z:F4}," +
                                        $"{snapshot.baseTorque:F4}, {snapshot.shoulderTorque:F4}, {snapshot.elbowTorque:F4}," +
+                                       $"{snapshot.basePower:F4}, {snapshot.shoulderPower:F4}, {snapshot.elbowPower:F4}" +
+                                       $"{snapshot.physicalBaseEnergy:F4}, {snapshot.physicalShoulderEnergy:F4}, {snapshot.physicalElbowEnergy}"+
                                        $"{(snapshot.isBoxAttached ? 1 : 0)},{snapshot.energyConsumed:F6}");
                     }
                 }
@@ -255,6 +263,7 @@ public class DataCollector : MonoBehaviour
                                "End_Effector_X,End_Effector_Y,End_Effector_Z," +
                                "Shoulder_Angle,Elbow_Angle,Base_Rotation," +
                                "Reach_Distance,Angle_From_Base," +
+                               "Base_Angle, Shoulder_Angle, Elbow_Angle" +
                                "Joint_Config_Valid");
 
                 foreach (PhysicsData episodeData in detailedPhysicsData)
@@ -266,18 +275,44 @@ public class DataCollector : MonoBehaviour
                         Vector3 magnetPos = snapshot.magnetPosition;
                         Vector2 magnetPos2D = new Vector2(magnetPos.x, magnetPos.z);
                         float reachDistance = magnetPos2D.magnitude;
-                        float angleFromBase = Mathf.Atan2(magnetPos.z, magnetPos.x) * Mathf.Rad2Deg;
+                        float angleFromBase = MathF.Atan2(magnetPos.z, magnetPos.x) * Mathf.Rad2Deg;
 
-                        float l1 = Vector3.Distance(shoulderControl.position, elbowControl.position);
-                        float l2 = Vector3.Distance(elbowControl.position, magnetPos);
+                        float l1 = robot.Link1Length;
+                        float l2 = robot.Link2Length;
 
-                        float q2 = -Mathf.Acos((MathF.Pow(magnetPos.x, 2) + MathF.Pow(magnetPos.y, 2) - MathF.Pow(l1, 2) - MathF.Pow(l2, 2)) / (2 * l1 * l2));
-                        float q1 = Mathf.Atan(magnetPos.y / magnetPos.x) + Mathf.Atan(l2 * mathf.sin(q2) / (l1 + l2*Mathf.cos(q2)));
+                        Vector3 shoulderPosition = robot.shoulderJoint.position;
 
-                        float currentBaseAngle = MathF.Atan(magnetPos.Z, magnetPos.x);
+                        float shoulderXPosition = robot.shoulderJoint.position.x;
+                        float shoulderYPosition = robot.shoulderJoint.position.y;
+                        float shoulderZPosition = robot.shoulderJoint.position.z;
 
-                        float ShoulderXOffset = shoulderControl.localPosition.x;
-                        
+                        Quaternion targetRotation = robot.shoulderJoint.transform.rotation;
+
+                        Vector3 shoulderInverseRotation = Quaternion.Inverse(targetRotation);
+
+                        Vector3 position = magnetPos - shoulderPosition;
+
+                        Vector3 localPosition = shoulderInverseRotation * position;
+
+                        float x = localPosition.x;
+                        float y = localPosition.y;
+                        float z = localPosition.z;
+
+                        // current base angle (robotic arm orientation in the xz plane)
+
+                        float q1 = MathF.Atan2(z, x);
+
+                        // This will calculate inverse kinematics in the shoulder frame
+
+                        float r = MathF.Sqrt(x*x + z*z);
+
+                        // Elbow and shoulder angles in the xy plane 
+
+                        // Here we are assuming that the robotic arm wouldn't go in the upper angle position, hence one of the solutions is shown only.
+
+                        float q3 = -Mathf.Acos((MathF.Pow(x, 2) + MathF.Pow(y, 2) - MathF.Pow(l1, 2) - MathF.Pow(l2, 2)) / (2 * l1 * l2));
+                        float q2 = Mathf.Atan2(y, x) + Mathf.Atan(l2 * mathf.Sin(q3) / (l1 + l2*Mathf.Cos(q3)));
+
                         // Check if joint configuration is physically valid
                         bool configValid = IsJointConfigurationValid(snapshot.shoulderAngle, snapshot.elbowAngle);
 
@@ -285,7 +320,7 @@ public class DataCollector : MonoBehaviour
                                        $"{magnetPos.x:F4},{magnetPos.y:F4},{magnetPos.z:F4}," +
                                        $"{snapshot.shoulderAngle:F4},{snapshot.elbowAngle:F4},{snapshot.baseAngle:F4}," +
                                        $"{reachDistance:F4},{angleFromBase:F4}," +
-                                       $"{q1}, {q2}" + 
+                                       $"{q1}, {q2}, {q3}" + 
                                        $"{(configValid ? 1 : 0)}");
                     }
                 }
@@ -721,21 +756,22 @@ public class PhysicsSnapshot
 
     public float elbowTorque;
 
-    private float GetJointTorque(ArticulationBody joint)
-    {
-        if(joint == null)
-        {
-            return 0f;
-        }
-        if(joint.jointForce.dofCount == 0)
-        {
-            return 0f;
-        }
-        return joint.jointForce[0];
-    }
-    
-    // Energy
+    // Joint power
+
+    public float basePower;
+
+    public float shoulderPower;
+
+    public float elbowPower;
+
+    // training energy
     public float energyConsumed;
+
+    public float physicalBaseEnergy;
+
+    public float physicalShoulderEnergy;
+
+    public float physicalElbowEnergy;
 }
 
 public class FrequencyBin

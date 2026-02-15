@@ -5,11 +5,15 @@ using UnityEngine;
 using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
+using System.Numerics;
+using System.ComponentModel.DataAnnotations;
 
 public class RobotAgent : Agent
 {
     [Header("Robot Joint Components")]
     [SerializeField] private ArticulationBody baseRotation;    // rotates entire arm (Y-axis)
+    public float Link1Length {get; private set; }              // distance between shoulder and elbow
+    public float Link2Length {get; private set; }              // distance between elbow and magnet
     [SerializeField] private ArticulationBody shoulderJoint;   // shoulder joint
     [SerializeField] private ArticulationBody elbowJoint;      // elbow joint
     [SerializeField] private Transform magnet;                 // end obj with magnet
@@ -93,6 +97,9 @@ public class RobotAgent : Agent
         totalAttempts = 0;
         SetupMagnetCollider();
         previousMagnetPosition = magnet.position;
+
+        Link1Length = Vector3.Distance(shoulderJoint.position, elbowJoint.position);
+        Link2Length = Vector3.Distance(elbowJoint.position, magnet.position);
     }
 
     private void SetupMagnetCollider() // in case I forgot
@@ -228,7 +235,13 @@ public class RobotAgent : Agent
         ApplyJointTorque(shoulderJoint, shoulderControl);
         ApplyJointTorque(elbowJoint, elbowControl);
 
-        float energyThisStep = CalculateEnergyConsumption(baseControl, shoulderControl, elbowControl);
+        float baseTorque = GetJointTorque(baseRotation);
+        float shoulderTorque = GetJointTorque(shoulderJoint);
+        float elbowTorque = GetJointTorque(elbowJoint);
+
+        float totalTorqueThisStep = baseTorque + shoulderTorque + elbowTorque;
+
+        float energyThisStep = CalculateEnergyConsumption(baseTorque, shoulderTorque, elbowTorque);
         totalEnergyConsumed += energyThisStep;
 
         // power budget check
@@ -252,7 +265,7 @@ public class RobotAgent : Agent
             CollectPhysicsSnapshot(baseControl, shoulderControl, elbowControl, energyThisStep);
         }
 
-        CalculateRewards(energyThisStep);
+        CalculateRewards(energyThisStep, totalTorqueThisStep);
         CheckEpisodeEnd();
     }
 
@@ -264,16 +277,20 @@ public class RobotAgent : Agent
         continuousActions[2] = Input.GetKey(KeyCode.A) ? -1f : Input.GetKey(KeyCode.D) ? 1f : 0f;
     }
 
-    private float CalculateEnergyConsumption(float baseControl, float shoulderControl, float elbowControl)
+    private float CalculateEnergyConsumption(float baseTorque, float shoulderTorque, float elbowTorque)
     {
-        float baseEnergy = Mathf.Abs(baseControl * (baseRotation != null ? baseRotation.velocity[0] : 0f));
-        float shoulderEnergy = Mathf.Abs(shoulderControl * (shoulderJoint != null ? shoulderJoint.velocity[0] : 0f));
-        float elbowEnergy = Mathf.Abs(elbowControl * (elbowJoint != null ? elbowJoint.velocity[0] : 0f));
+        float baseEnergy = Mathf.Abs(baseTorque * (baseRotation != null ? baseRotation.velocity[0] : 0f));
+        float shoulderEnergy = Mathf.Abs(shoulderTorque * (shoulderJoint != null ? shoulderJoint.velocity[0] : 0f));
+        float elbowEnergy = Mathf.Abs(elbowTorque * (elbowJoint != null ? elbowJoint.velocity[0] : 0f));
         return (baseEnergy + shoulderEnergy + elbowEnergy) * Time.fixedDeltaTime;
     }
 
     private void CollectPhysicsSnapshot(float baseControl, float shoulderControl, float elbowControl, float energy)
     {
+        physicalBaseEnergy = 0f;
+        physicalShoulderEnergy = 0f;
+        physicalElbowEnergy = 0f;
+
         PhysicsSnapshot snapshot = new PhysicsSnapshot
         {
             timestamp = Time.time - episodeStartTime,
@@ -288,11 +305,21 @@ public class RobotAgent : Agent
             shoulderControl = shoulderControl,
             elbowControl = elbowControl,
             baseTorque = GetJointTorque(baseRotation), 
-            shoulderTorque = GetJointTorque(shoulderControl),
-            elbowTorque = getJointTorque(elbowControl),
+            shoulderTorque = GetJointTorque(shoulderJoint),
+            elbowTorque = GetJointTorque(elbowJoint),
             basePower = baseVelocity * baseTorque,
             shoulderPower = shoulderVelocity * shoulderTorque,
-            elbowPower = elbowVelocity * 
+            elbowPower = elbowVelocity * elbowTorque,
+
+            // this is to find the accumulative mechanical energy consumption 
+
+            baseEnergyIncrement = basePower * Time.fixedDeltaTime, 
+            shoulderEnergyIncrement = shoulderPower * Time.fixedDeltaTime,
+            elbowEnergyIncrement = elbowPower * Time.fixedDeltaTime,
+
+            physicalBaseEnergy += baseEnergyIncrement,
+            physicalShoulderEnergy += shoulderEnergyIncrement,
+            physicalElbowEnergy += elbowEnergyIncrement,
             magnetPosition = magnet.position,
             magnetVelocity = magnetVelocity,
             boxPosition = movableBox != null ? movableBox.position : boxStartPosition,
@@ -304,7 +331,7 @@ public class RobotAgent : Agent
         currentPhysicsData.snapshots.Add(snapshot);
     }
 
-    private void CalculateRewards(float energyThisStep)
+    private void CalculateRewards(float energyThisStep, float totalTorqueThisStep)
     {
         // distance improvement reward
         float distanceImprovement = previousDistanceToTarget - distanceToTarget;
@@ -344,6 +371,11 @@ public class RobotAgent : Agent
         // energy penalty - use INCREMENTAL energy, not cumulative
         AddReward(-0.005f * energyThisStep * rewardMultiplier);
         AddReward(-0.0001f * rewardMultiplier);  // time penalty
+
+        // torque penalty (if the arm holds the box for too long, creating excessive gravitational torque)
+        // takes into account theoretical actuator stress and motion cost
+
+        AddReward(-0.005f * totalTorqueThisStep * rewardMultiplier);
 
         // penalize excessive/jerky movement while holding
         if (isBoxAttached)
@@ -489,6 +521,20 @@ public class RobotAgent : Agent
         // is trying to reach, but actual angle can differ due to inertia/load
         return joint.jointPosition[0] * Mathf.Rad2Deg;
     }
+
+    private float GetJointTorque(ArticulationBody joint)
+    {
+        if(joint == null)
+        {
+            return 0f;
+        }
+        if(joint.jointForce.dofCount == 0)
+        {
+            return 0f;
+        }
+        return joint.jointForce[0];
+    }
+
 
     private void GenerateRandomPositions()
     {
