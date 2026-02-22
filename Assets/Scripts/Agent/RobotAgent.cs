@@ -563,8 +563,9 @@ public class RobotAgent : Agent
         
         if (joint.jointType == ArticulationJointType.FixedJoint)
         {
-            Debug.LogError($"<color=red>{jointName} is a FIXED joint - it cannot move! Change to RevoluteJoint in Inspector.</color>");
-            return;
+            Debug.LogWarning($"<color=orange>{jointName} is a FIXED joint — auto-converting to RevoluteJoint.</color>");
+            joint.jointType = ArticulationJointType.RevoluteJoint;
+            joint.twistLock = ArticulationDofLock.LimitedMotion;
         }
 
         var drive = joint.xDrive;
@@ -591,6 +592,7 @@ public class RobotAgent : Agent
     private float GetJointAngle(ArticulationBody joint)
     {
         if (joint == null) return 0f;
+        if (joint.jointPosition.dofCount == 0) return 0f;
         // use actual joint position, NOT drive target — the target is what the motor
         // is trying to reach, but actual angle can differ due to inertia/load
         return joint.jointPosition[0] * Mathf.Rad2Deg;
