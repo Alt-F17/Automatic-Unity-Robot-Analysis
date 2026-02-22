@@ -22,6 +22,12 @@ public class DataCollector : MonoBehaviour
     [SerializeField] private bool exportInverseKinematics = true;
     [SerializeField] private bool exportStatisticalSummary = true;
 
+    [Header("Robot Joint References (for IK export)")]
+    [SerializeField] private ArticulationBody baseJointRef;
+    [SerializeField] private ArticulationBody shoulderJointRef;
+    [SerializeField] private ArticulationBody elbowJointRef;
+    [SerializeField] private Transform magnetRef;
+
     [Header("File Settings")]
     [SerializeField] private string filePrefix = "aura_robot";
     private string currentSessionID;
@@ -255,18 +261,27 @@ public class DataCollector : MonoBehaviour
                         float reachDistance = magnetPos2D.magnitude;
                         float angleFromBase = Mathf.Atan2(magnetPos.z, magnetPos.x) * Mathf.Rad2Deg;
 
-                        float l1 = Vector3.Distance(shoulderControl.position, elbowControl.position);
-                        float l2 = Vector3.Distance(elbowControl.position, magnetPos);
+                        float l1 = shoulderJointRef != null && elbowJointRef != null
+                            ? Vector3.Distance(shoulderJointRef.transform.position, elbowJointRef.transform.position) : 1f;
+                        float l2 = elbowJointRef != null
+                            ? Vector3.Distance(elbowJointRef.transform.position, magnetPos) : 1f;
 
-                        float q2 = -Mathf.Acos((magnetPos.x**2 + magnetPos.y**2 - l1**2 - l2**2) / 2 * l1 * l2);
-                        float q1 = Mathf.Atan(magnetPos.y / magnetPos.x) + Mathf.Atan((l2 * mathf.sin(q2)) / (l1 + l2*Mathf.cos(q2)));
+                        float mx2 = magnetPos.x * magnetPos.x;
+                        float my2 = magnetPos.y * magnetPos.y;
+                        float l1sq = l1 * l1;
+                        float l2sq = l2 * l2;
+                        float cosArg = Mathf.Clamp((mx2 + my2 - l1sq - l2sq) / (2f * l1 * l2), -1f, 1f);
+                        float q2 = -Mathf.Acos(cosArg);
+                        float q1 = Mathf.Atan2(magnetPos.y, magnetPos.x) + Mathf.Atan2(l2 * Mathf.Sin(q2), l1 + l2 * Mathf.Cos(q2));
 
+                        float baseLower = baseJointRef != null ? baseJointRef.xDrive.lowerLimit : 0f;
+                        float baseUpper = baseJointRef != null ? baseJointRef.xDrive.upperLimit : 0f;
+                        float shoulderLower = shoulderJointRef != null ? shoulderJointRef.xDrive.lowerLimit : 0f;
+                        float shoulderUpper = shoulderJointRef != null ? shoulderJointRef.xDrive.upperLimit : 0f;
+                        float elbowLower = elbowJointRef != null ? elbowJointRef.xDrive.lowerLimit : 0f;
+                        float elbowUpper = elbowJointRef != null ? elbowJointRef.xDrive.upperLimit : 0f;
 
-                        SoftJointLimit linearBaseLimit = baseControl.linearLimit;
-                        SoftJointLimit linearShoulderLimit = shoulderControl.linearLimit;
-                        SoftJointLimit linearElbowLimit = elbowControl.linearLimit;
-
-                        float ShoulderXOffset = shoulderControl.localPosition.x;
+                        float shoulderXOffset = shoulderJointRef != null ? shoulderJointRef.transform.localPosition.x : 0f;
                         
                         // Check if joint configuration is physically valid
                         bool configValid = IsJointConfigurationValid(snapshot.shoulderAngle, snapshot.elbowAngle);
@@ -700,25 +715,15 @@ public class PhysicsSnapshot
     public Vector3 boxVelocity;
     public bool isBoxAttached;
 
-    // Joint torque
+    // Joint torque (exact, from physics solver)
     public float baseTorque;
-
     public float shoulderTorque;
-
     public float elbowTorque;
 
-    private float GetJointTorque(ArticulationBody joint)
-    {
-        if(joint == null)
-        {
-            return 0f;
-        }
-        if(joint.jointForce.dofCount == 0)
-        {
-            return 0f;
-        }
-        return joint.jointForce[0];
-    }
+    // Joint power (velocity * torque)
+    public float basePower;
+    public float shoulderPower;
+    public float elbowPower;
     
     // Energy
     public float energyConsumed;

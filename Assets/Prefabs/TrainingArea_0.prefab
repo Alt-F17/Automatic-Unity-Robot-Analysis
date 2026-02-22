@@ -1417,12 +1417,14 @@ MonoBehaviour:
   magneticRange: 0.5
   magneticStrength: 100
   visualizeMagnetRange: 1
-  maxMotorForce: 100
   movementSpeed: 50
   rewardMultiplier: 1
+  autoScaleForces: 1
+  baseStiffness: 100000
+  baseDamping: 10000
+  baseForceLimit: 100000
   usePowerBudget: 1
   maxPowerBudget: 100
-  currentPower: 100
   useRandomPositions: 1
   minDistance: 2
   maxReach: 4
@@ -1451,6 +1453,10 @@ MonoBehaviour:
   exportDetailedPhysics: 0
   exportInverseKinematics: 0
   exportStatisticalSummary: 0
+  baseJointRef: {fileID: 3739462496183774049}
+  shoulderJointRef: {fileID: 1733737741045914668}
+  elbowJointRef: {fileID: 6023307684574495585}
+  magnetRef: {fileID: 7787344783861433740}
   filePrefix: aura_robot
 --- !u!114 &589946148598664468
 MonoBehaviour:

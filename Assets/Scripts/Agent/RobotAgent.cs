@@ -294,31 +294,47 @@ public class RobotAgent : Agent
 
     private void CollectPhysicsSnapshot(float baseControl, float shoulderControl, float elbowControl, float energy)
     {
+        // calculate joint velocities using actual joint data, not just control inputs
+        float baseVelocity = baseRotation != null ? baseRotation.velocity[0] : 0f;
+        float shoulderVelocity = shoulderJoint != null ? shoulderJoint.velocity[0] : 0f;
+        float elbowVelocity = elbowJoint != null ? elbowJoint.velocity[0] : 0f;
+
+        // exact torque from physics solver (jointForce returns the force/torque applied by the drive)
+        float baseTorque = GetJointTorque(baseRotation);
+        float shoulderTorque = GetJointTorque(shoulderJoint);
+        float elbowTorque = GetJointTorque(elbowJoint);
+
+
         PhysicsSnapshot snapshot = new PhysicsSnapshot
         {
             timestamp = Time.time - episodeStartTime,
+
             baseAngle = GetJointAngle(baseRotation),
             shoulderAngle = GetJointAngle(shoulderJoint),
             elbowAngle = GetJointAngle(elbowJoint),
-            magnetAngle = GetJointAngle(magnet),
-            baseVelocity = baseRotation != null ? baseRotation.velocity[0] : 0f,
-            shoulderVelocity = shoulderJoint != null ? shoulderJoint.velocity[0] : 0f,
-            elbowVelocity = elbowJoint != null ? elbowJoint.velocity[0] : 0f,
+
+            baseVelocity = baseVelocity,
+            shoulderVelocity = shoulderVelocity,
+            elbowVelocity = elbowVelocity,
+
             baseControl = baseControl,
             shoulderControl = shoulderControl,
             elbowControl = elbowControl,
-            baseTorque = GetJointTorque(baseRotation), 
-            shoulderTorque = GetJointToque(shoulderControl),
-            elbowTorque = getJointTorque(elbowControl),
-            shoulderTorque = shoulderTorque, 
+
+            baseTorque = baseTorque,
+            shoulderTorque = shoulderTorque,
             elbowTorque = elbowTorque,
+
             basePower = baseVelocity * baseTorque,
             shoulderPower = shoulderVelocity * shoulderTorque,
-            elbowPower = elbowVelocity * 
+            elbowPower = elbowVelocity * elbowTorque,
+
             magnetPosition = magnet.position,
             magnetVelocity = magnetVelocity,
+
             boxPosition = movableBox != null ? movableBox.position : boxStartPosition,
             boxVelocity = movableBox != null ? movableBox.velocity : Vector3.zero,
+
             isBoxAttached = isBoxAttached,
             energyConsumed = energy
         };
@@ -578,6 +594,15 @@ public class RobotAgent : Agent
         // use actual joint position, NOT drive target — the target is what the motor
         // is trying to reach, but actual angle can differ due to inertia/load
         return joint.jointPosition[0] * Mathf.Rad2Deg;
+    }
+
+    /// returns the exact torque applied by the physics solver on a joint's primary DOF
+    /// uses ArticulationBody.jointForce which gives the actual computed drive torque
+    private float GetJointTorque(ArticulationBody joint)
+    {
+        if (joint == null) return 0f;
+        if (joint.jointForce.dofCount == 0) return 0f;
+        return joint.jointForce[0];
     }
 
     private void GenerateRandomPositions()
