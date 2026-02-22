@@ -209,9 +209,9 @@ public class RobotAgent : Agent
         sensor.AddObservation(baseAngle);
         sensor.AddObservation(shoulderAngle);
         sensor.AddObservation(elbowAngle);
-        sensor.AddObservation(baseRotation != null ? baseRotation.velocity[0] : 0f);
-        sensor.AddObservation(shoulderJoint != null ? shoulderJoint.velocity[0] : 0f);
-        sensor.AddObservation(elbowJoint != null ? elbowJoint.velocity[0] : 0f);
+        sensor.AddObservation(baseRotation != null ? baseRotation.jointVelocity[0] : 0f);
+        sensor.AddObservation(shoulderJoint != null ? shoulderJoint.jointVelocity[0] : 0f);
+        sensor.AddObservation(elbowJoint != null ? elbowJoint.jointVelocity[0] : 0f);
 
         // velocity data: transform to local space for training area independence
         sensor.AddObservation(transform.InverseTransformDirection(boxVel));
@@ -286,18 +286,18 @@ public class RobotAgent : Agent
 
     private float CalculateEnergyConsumption(float baseControl, float shoulderControl, float elbowControl)
     {
-        float baseEnergy = Mathf.Abs(baseControl * (baseRotation != null ? baseRotation.velocity[0] : 0f));
-        float shoulderEnergy = Mathf.Abs(shoulderControl * (shoulderJoint != null ? shoulderJoint.velocity[0] : 0f));
-        float elbowEnergy = Mathf.Abs(elbowControl * (elbowJoint != null ? elbowJoint.velocity[0] : 0f));
+        float baseEnergy = Mathf.Abs(baseControl * (baseRotation != null ? baseRotation.jointVelocity[0] : 0f));
+        float shoulderEnergy = Mathf.Abs(shoulderControl * (shoulderJoint != null ? shoulderJoint.jointVelocity[0] : 0f));
+        float elbowEnergy = Mathf.Abs(elbowControl * (elbowJoint != null ? elbowJoint.jointVelocity[0] : 0f));
         return (baseEnergy + shoulderEnergy + elbowEnergy) * Time.fixedDeltaTime;
     }
 
     private void CollectPhysicsSnapshot(float baseControl, float shoulderControl, float elbowControl, float energy)
     {
-        // calculate joint velocities using actual joint data, not just control inputs
-        float baseVelocity = baseRotation != null ? baseRotation.velocity[0] : 0f;
-        float shoulderVelocity = shoulderJoint != null ? shoulderJoint.velocity[0] : 0f;
-        float elbowVelocity = elbowJoint != null ? elbowJoint.velocity[0] : 0f;
+        // calculate joint angular velocities using actual joint data (rad/s), not linear velocity
+        float baseVelocity = baseRotation != null ? baseRotation.jointVelocity[0] : 0f;
+        float shoulderVelocity = shoulderJoint != null ? shoulderJoint.jointVelocity[0] : 0f;
+        float elbowVelocity = elbowJoint != null ? elbowJoint.jointVelocity[0] : 0f;
 
         // exact torque from physics solver (jointForce returns the force/torque applied by the drive)
         float baseTorque = GetJointTorque(baseRotation);
@@ -660,6 +660,7 @@ public class RobotAgent : Agent
             var drive = baseRotation.xDrive;
             drive.target = 0f;
             baseRotation.xDrive = drive;
+            baseRotation.jointPosition = new ArticulationReducedSpace(0f);
             baseRotation.jointVelocity = new ArticulationReducedSpace(0f);
         }
 
@@ -668,6 +669,7 @@ public class RobotAgent : Agent
             var drive = shoulderJoint.xDrive;
             drive.target = 45f;
             shoulderJoint.xDrive = drive;
+            shoulderJoint.jointPosition = new ArticulationReducedSpace(45f * Mathf.Deg2Rad);
             shoulderJoint.jointVelocity = new ArticulationReducedSpace(0f);
         }
 
@@ -676,6 +678,7 @@ public class RobotAgent : Agent
             var drive = elbowJoint.xDrive;
             drive.target = -30f;
             elbowJoint.xDrive = drive;
+            elbowJoint.jointPosition = new ArticulationReducedSpace(-30f * Mathf.Deg2Rad);
             elbowJoint.jointVelocity = new ArticulationReducedSpace(0f);
         }
     }

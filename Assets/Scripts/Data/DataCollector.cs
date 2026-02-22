@@ -202,7 +202,7 @@ public class DataCollector : MonoBehaviour
                                "Magnet_Vel_X,Magnet_Vel_Y,Magnet_Vel_Z," +
                                "Box_Pos_X,Box_Pos_Y,Box_Pos_Z," +
                                "Box_Vel_X,Box_Vel_Y,Box_Vel_Z," +
-                               "Base_Torque, Shoulder_Torque, Elbow_Torque" +
+                               "Base_Torque,Shoulder_Torque,Elbow_Torque," +
                                "Box_Attached,Energy_Step");
 
                 // Write all snapshots from all episodes
@@ -218,7 +218,7 @@ public class DataCollector : MonoBehaviour
                                        $"{snapshot.magnetVelocity.x:F4},{snapshot.magnetVelocity.y:F4},{snapshot.magnetVelocity.z:F4}," +
                                        $"{snapshot.boxPosition.x:F4},{snapshot.boxPosition.y:F4},{snapshot.boxPosition.z:F4}," +
                                        $"{snapshot.boxVelocity.x:F4},{snapshot.boxVelocity.y:F4},{snapshot.boxVelocity.z:F4}," +
-                                       $"{snapshot.baseTorque:F4}, {snapshot.shoulderTorque:F4}, {snapshot.elbowTorque:F4}," +
+                                       $"{snapshot.baseTorque:F4},{snapshot.shoulderTorque:F4},{snapshot.elbowTorque:F4}," +
                                        $"{(snapshot.isBoxAttached ? 1 : 0)},{snapshot.energyConsumed:F6}");
                     }
                 }
@@ -248,7 +248,16 @@ public class DataCollector : MonoBehaviour
                                "End_Effector_X,End_Effector_Y,End_Effector_Z," +
                                "Shoulder_Angle,Elbow_Angle,Base_Rotation," +
                                "Reach_Distance,Angle_From_Base," +
+                               "IK_Q1,IK_Q2," +
                                "Joint_Config_Valid");
+
+                // Pre-compute link lengths once (constant physical dimensions)
+                float l1 = shoulderJointRef != null && elbowJointRef != null
+                    ? Vector3.Distance(shoulderJointRef.transform.position, elbowJointRef.transform.position) : 1f;
+                float l2 = elbowJointRef != null && magnetRef != null
+                    ? Vector3.Distance(elbowJointRef.transform.position, magnetRef.position) : 1f;
+                float l1sq = l1 * l1;
+                float l2sq = l2 * l2;
 
                 foreach (PhysicsData episodeData in detailedPhysicsData)
                 {
@@ -290,7 +299,9 @@ public class DataCollector : MonoBehaviour
                                        $"{magnetPos.x:F4},{magnetPos.y:F4},{magnetPos.z:F4}," +
                                        $"{snapshot.shoulderAngle:F4},{snapshot.elbowAngle:F4},{snapshot.baseAngle:F4}," +
                                        $"{reachDistance:F4},{angleFromBase:F4}," +
-                                       $"{q1}, {q2}" + 
+                                       $"{q1:F4},{q2:F4}," +
+                                       $"{baseLower:F4},{baseUpper:F4},{shoulderLower:F4},{shoulderUpper:F4},{elbowLower:F4},{elbowUpper:F4}," +
+                                       $"{shoulderXOffset:F4}," +
                                        $"{(configValid ? 1 : 0)}");
                     }
                 }
