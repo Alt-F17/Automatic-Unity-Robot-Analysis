@@ -270,15 +270,8 @@ public class DataCollector : MonoBehaviour
                         float reachDistance = magnetPos2D.magnitude;
                         float angleFromBase = Mathf.Atan2(magnetPos.z, magnetPos.x) * Mathf.Rad2Deg;
 
-                        float l1 = shoulderJointRef != null && elbowJointRef != null
-                            ? Vector3.Distance(shoulderJointRef.transform.position, elbowJointRef.transform.position) : 1f;
-                        float l2 = elbowJointRef != null
-                            ? Vector3.Distance(elbowJointRef.transform.position, magnetPos) : 1f;
-
                         float mx2 = magnetPos.x * magnetPos.x;
                         float my2 = magnetPos.y * magnetPos.y;
-                        float l1sq = l1 * l1;
-                        float l2sq = l2 * l2;
                         float cosArg = Mathf.Clamp((mx2 + my2 - l1sq - l2sq) / (2f * l1 * l2), -1f, 1f);
                         float q2 = -Mathf.Acos(cosArg);
                         float q1 = Mathf.Atan2(magnetPos.y, magnetPos.x) + Mathf.Atan2(l2 * Mathf.Sin(q2), l1 + l2 * Mathf.Cos(q2));
