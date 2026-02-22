@@ -5,11 +5,9 @@ using System.IO;
 using System;
 using System.Linq;
 
-/// <summary>
-/// Enhanced Data Collector for AURA Project
-/// Collects comprehensive physics, mechanics, and performance data
-/// Designed for Probability & Statistics + Mechanics analysis
-/// </summary>
+// Enhanced Data Collector for AURA Project
+// Collects comprehensive physics, mechanics, and performance data
+// Designed for Probability & Statistics + Mechanics analysis
 public class DataCollector : MonoBehaviour
 {
     [Header("Data Collection Settings")]
@@ -45,10 +43,8 @@ public class DataCollector : MonoBehaviour
     private List<float> energySamples;
     private List<float> accuracySamples;
 
-    /// <summary>
-    /// Dynamically enable/disable detailed physics collection
-    /// Called by PerformanceTracker
-    /// </summary>
+    // Dynamically enable/disable detailed physics collection
+    // Called by PerformanceTracker
     public void SetCollectDetailedPhysics(bool enabled)
     {
         exportDetailedPhysics = enabled;
@@ -127,9 +123,7 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export all collected data
-    /// </summary>
+    // Export all collected data
     public void ExportAllData()
     {
         ExportBasicCSV();
@@ -151,10 +145,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export basic episode summary data
-    /// For: Overall performance analysis, success rate trends
-    /// </summary>
+    // Export basic episode summary data
+    // For: Overall performance analysis, success rate trends
     private void ExportBasicCSV()
     {
         if (episodeDataList.Count == 0) return;
@@ -185,10 +177,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export detailed physics snapshots for each episode
-    /// For: Mechanical analysis, trajectory analysis, force calculations
-    /// </summary>
+    // Export detailed physics snapshots for each episode
+    // For: Mechanical analysis, trajectory analysis, force calculations
     private void ExportDetailedPhysicsCSV()
     {
         string filename = $"{filePrefix}_physics_detailed_{currentSessionID}.csv";
@@ -206,6 +196,7 @@ public class DataCollector : MonoBehaviour
                                "Magnet_Vel_X,Magnet_Vel_Y,Magnet_Vel_Z," +
                                "Box_Pos_X,Box_Pos_Y,Box_Pos_Z," +
                                "Box_Vel_X,Box_Vel_Y,Box_Vel_Z," +
+                               "Base_Torque, Shoulder_Torque, Elbow_Torque" +
                                "Box_Attached,Energy_Step");
 
                 // Write all snapshots from all episodes
@@ -221,6 +212,7 @@ public class DataCollector : MonoBehaviour
                                        $"{snapshot.magnetVelocity.x:F4},{snapshot.magnetVelocity.y:F4},{snapshot.magnetVelocity.z:F4}," +
                                        $"{snapshot.boxPosition.x:F4},{snapshot.boxPosition.y:F4},{snapshot.boxPosition.z:F4}," +
                                        $"{snapshot.boxVelocity.x:F4},{snapshot.boxVelocity.y:F4},{snapshot.boxVelocity.z:F4}," +
+                                       $"{snapshot.baseTorque:F4}, {snapshot.shoulderTorque:F4}, {snapshot.elbowTorque:F4}," +
                                        $"{(snapshot.isBoxAttached ? 1 : 0)},{snapshot.energyConsumed:F6}");
                     }
                 }
@@ -234,10 +226,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export inverse kinematics data
-    /// For: IK calculations, workspace analysis, reachability studies
-    /// </summary>
+    // Export inverse kinematics data
+    // For: IK calculations, workspace analysis, reachability studies
     private void ExportInverseKinematicsCSV()
     {
         string filename = $"{filePrefix}_kinematics_{currentSessionID}.csv";
@@ -259,10 +249,24 @@ public class DataCollector : MonoBehaviour
                     foreach (PhysicsSnapshot snapshot in episodeData.snapshots)
                     {
                         // Calculate derived kinematics values
+                        // just remember that the mass is 1kg 
                         Vector3 magnetPos = snapshot.magnetPosition;
                         Vector2 magnetPos2D = new Vector2(magnetPos.x, magnetPos.z);
                         float reachDistance = magnetPos2D.magnitude;
                         float angleFromBase = Mathf.Atan2(magnetPos.z, magnetPos.x) * Mathf.Rad2Deg;
+
+                        float l1 = Vector3.Distance(shoulderControl.position, elbowControl.position);
+                        float l2 = Vector3.Distance(elbowControl.position, magnetPos);
+
+                        float q2 = -Mathf.Acos((magnetPos.x**2 + magnetPos.y**2 - l1**2 - l2**2) / 2 * l1 * l2);
+                        float q1 = Mathf.Atan(magnetPos.y / magnetPos.x) + Mathf.Atan((l2 * mathf.sin(q2)) / (l1 + l2*Mathf.cos(q2)));
+
+
+                        SoftJointLimit linearBaseLimit = baseControl.linearLimit;
+                        SoftJointLimit linearShoulderLimit = shoulderControl.linearLimit;
+                        SoftJointLimit linearElbowLimit = elbowControl.linearLimit;
+
+                        float ShoulderXOffset = shoulderControl.localPosition.x;
                         
                         // Check if joint configuration is physically valid
                         bool configValid = IsJointConfigurationValid(snapshot.shoulderAngle, snapshot.elbowAngle);
@@ -271,6 +275,7 @@ public class DataCollector : MonoBehaviour
                                        $"{magnetPos.x:F4},{magnetPos.y:F4},{magnetPos.z:F4}," +
                                        $"{snapshot.shoulderAngle:F4},{snapshot.elbowAngle:F4},{snapshot.baseAngle:F4}," +
                                        $"{reachDistance:F4},{angleFromBase:F4}," +
+                                       $"{q1}, {q2}" + 
                                        $"{(configValid ? 1 : 0)}");
                     }
                 }
@@ -284,10 +289,8 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export statistical summary and probability distributions
-    /// For: Statistical analysis, distribution fitting, hypothesis testing
-    /// </summary>
+    // Export statistical summary and probability distributions
+    // For: Statistical analysis, distribution fitting, hypothesis testing
     private void ExportStatisticalSummary()
     {
         string filename = $"{filePrefix}_statistics_{currentSessionID}.txt";
@@ -392,9 +395,7 @@ public class DataCollector : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Export probability distribution data for histogram creation
-    /// </summary>
+    // Export probability distribution data for histogram creation
     private void ExportProbabilityDistributions()
     {
         string filename = $"{filePrefix}_distributions_{currentSessionID}.csv";
@@ -698,6 +699,26 @@ public class PhysicsSnapshot
     public Vector3 boxPosition;
     public Vector3 boxVelocity;
     public bool isBoxAttached;
+
+    // Joint torque
+    public float baseTorque;
+
+    public float shoulderTorque;
+
+    public float elbowTorque;
+
+    private float GetJointTorque(ArticulationBody joint)
+    {
+        if(joint == null)
+        {
+            return 0f;
+        }
+        if(joint.jointForce.dofCount == 0)
+        {
+            return 0f;
+        }
+        return joint.jointForce[0];
+    }
     
     // Energy
     public float energyConsumed;

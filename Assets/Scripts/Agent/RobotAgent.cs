@@ -1,36 +1,31 @@
-using System.Collections;
-using System.Collections.Generic;
+// action-taking script that directly communicates with the ML-Agents framework:
+// controls the robot arm, calculates rewards, and manages episode lifecycle
+
 using UnityEngine;
 using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
 
-/// <summary>
-/// 2-Joint + Rotation Robotic Arm with Magnetic Pickup
-/// Structure: Base Rotation → Shoulder (upper arm) → Elbow → Forearm (lower arm) → Magnet
-/// Automatically picks up box when magnet enters collision range
-/// </summary>
 public class RobotAgent : Agent
 {
     [Header("Robot Joint Components")]
-    [SerializeField] private ArticulationBody baseRotation;    // Rotates entire arm (Y-axis)
-    [SerializeField] private ArticulationBody shoulderJoint;   // Shoulder joint
-    [SerializeField] private ArticulationBody elbowJoint;      // Elbow joint
-    [SerializeField] private Transform magnet;                 // End effector with magnet
+    [SerializeField] private ArticulationBody baseRotation;    // rotates entire arm (Y-axis)
+    [SerializeField] private ArticulationBody shoulderJoint;   // shoulder joint
+    [SerializeField] private ArticulationBody elbowJoint;      // elbow joint
+    [SerializeField] private Transform magnet;                 // end obj with magnet
 
     [Header("Environment Objects")]
     [SerializeField] private Rigidbody movableBox;
-    [SerializeField] private Transform targetZoneA;            // Starting zone
-    [SerializeField] private Transform targetZoneB;            // Goal zone
+    [SerializeField] private Transform targetZoneA;            // starting zone
+    [SerializeField] private Transform targetZoneB;            // goal zone
     [SerializeField] private Transform floor;
 
     [Header("Magnet Settings")]
-    [SerializeField] private float magneticRange = 0.5f;       // Distance to auto-pickup
-    [SerializeField] private float magneticStrength = 100f;    // Spring force strength
-    [SerializeField] private bool visualizeMagnetRange = true;
+    [SerializeField] private float magneticRange = 0.5f;       // distance to auto-pickup
+    [SerializeField] private float magneticStrength = 100f;    // spring force strength
+    [SerializeField] private bool visualizeMagnetRange = true;  // hope this helps you Seb
 
     [Header("Training Parameters")]
-    [SerializeField] private float maxMotorForce = 100f;
     [SerializeField] private float movementSpeed = 50f;
     [SerializeField] private float rewardMultiplier = 1f;
 
@@ -45,18 +40,18 @@ public class RobotAgent : Agent
     [Header("Power Budget System")]
     [SerializeField] private bool usePowerBudget = false;
     [SerializeField] private float maxPowerBudget = 100f;
-    [SerializeField] private float currentPower = 100f;
+    private float currentPower = 100f;
 
     [Header("Random Position System")]
     [SerializeField] private bool useRandomPositions = true;
-    [SerializeField] private float minDistance = 2f;  // Min distance between start/end
-    [SerializeField] private float maxReach = 4f;     // Robot's max reach
-    [SerializeField] private float workspaceRadius = 3.5f;  // Safe reachable area
+    [SerializeField] private float minDistance = 2f;           // min distance between start/end
+    [SerializeField] private float maxReach = 4f;              // robot's max reach
+    [SerializeField] private float workspaceRadius = 3.5f;     // safe reachable area
 
     [Header("Curriculum Learning")]
     [Tooltip("After this many episodes, enable Power Budget and Random Positions")]
     [SerializeField] private int curriculumEpisodeThreshold = 500;
-    private bool curriculumActive = false;
+    private bool curriculumActive = false;                     // automatically activated by ML-Agents as CompletedEpisodes
 
     [Header("Safety Zones")]
     [Tooltip("Penalty applied per frame when a joint is pushed against its physical limit")]
@@ -70,13 +65,13 @@ public class RobotAgent : Agent
     [Header("Physics Data Collection")]
     [SerializeField] private bool collectDetailedPhysics = true;
 
-    // Magnetic pickup system
+    // magnetic pickup system
     private bool isBoxAttached = false;
     private FixedJoint magnetJoint;
     private Vector3 boxStartPosition;
     private Vector3 targetPosition;
 
-    // Performance tracking
+    // performance tracking
     private float episodeStartTime;
     private float totalEnergyConsumed;
     private int successfulMoves;
@@ -84,16 +79,15 @@ public class RobotAgent : Agent
     private float distanceToTarget;
     private float previousDistanceToTarget;
 
-    // Physics data for mechanics analysis
+    // physics data for mechanics analysis
     private PhysicsData currentPhysicsData;
     private DataCollector dataCollector;
 
-    // Inverse kinematics data
-    private Vector2 currentJointAngles;  // [shoulder, elbow]
+    // inverse kinematics data
     private Vector3 previousMagnetPosition;
     private Vector3 magnetVelocity;
 
-    public override void Initialize()
+    public override void Initialize() // override for data collection setup and init vars
     {
         dataCollector = GetComponent<DataCollector>();
         if (dataCollector == null)
@@ -115,7 +109,7 @@ public class RobotAgent : Agent
         previousMagnetPosition = magnet.position;
     }
 
-    private void SetupMagnetCollider()
+    private void SetupMagnetCollider() // in case I forgot
     {
         SphereCollider magnetCollider = magnet.GetComponent<SphereCollider>();
         if (magnetCollider == null)
@@ -133,9 +127,9 @@ public class RobotAgent : Agent
         trigger.Initialize(this);
     }
 
-    public override void OnEpisodeBegin()
+    public override void OnEpisodeBegin() // reset positions, states, and curriculum progression
     {
-        // Curriculum phase detection
+        // curriculum phase detection
         if (CompletedEpisodes >= curriculumEpisodeThreshold && !curriculumActive)
         {
             curriculumActive = true;
@@ -147,20 +141,17 @@ public class RobotAgent : Agent
         DetachBox();
         ResetRobotArm();
 
-        // Reset power budget
+        // reset power budget
         if (usePowerBudget) currentPower = maxPowerBudget;
 
-        // Generate random positions or use fixed zones
-        // All positions should be relative to this training area's transform
-        Vector3 areaOrigin = transform.position;
-        
+        // generate random positions or use fixed zones
         if (useRandomPositions)
         {
             GenerateRandomPositions();
         }
         else
         {
-            // Use the target zones that are children of this training area (already in correct world position)
+            // use the target zones that are children of this training area (already in correct world position)
             boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
             targetPosition = targetZoneB.position + Vector3.up * 0.5f;
         }
@@ -183,57 +174,58 @@ public class RobotAgent : Agent
 
         if (collectDetailedPhysics)
         {
-            currentPhysicsData = new PhysicsData();
-            currentPhysicsData.episodeNumber = CompletedEpisodes + 1;
-            currentPhysicsData.startTime = episodeStartTime;
+            currentPhysicsData = new PhysicsData
+            {
+                episodeNumber = CompletedEpisodes + 1,
+                startTime = episodeStartTime
+            };
         }
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
-        // Null safety for movableBox
-        Vector3 boxPos = movableBox != null ? movableBox.position : boxStartPosition;
-        Vector3 boxVel = movableBox != null ? movableBox.velocity : Vector3.zero;
+        // null safety for movableBox
+        Vector3 boxPos = movableBox?.position ?? boxStartPosition;
+        Vector3 boxVel = movableBox?.velocity ?? Vector3.zero;
         
-        // Position data (9)
+        // position data
         sensor.AddObservation(transform.InverseTransformPoint(magnet.position));
         sensor.AddObservation(transform.InverseTransformPoint(boxPos));
         sensor.AddObservation(transform.InverseTransformPoint(targetPosition));
 
-        // Distance data (3)
+        // distance data
         float distanceToBox = Vector3.Distance(magnet.position, boxPos);
         sensor.AddObservation(distanceToBox);
         distanceToTarget = Vector3.Distance(boxPos, targetPosition);
         sensor.AddObservation(distanceToTarget);
-        // Use local floor height relative to this training area
+        // use local floor height relative to this training area
         float localFloorY = floor != null ? floor.position.y : transform.position.y;
         sensor.AddObservation(magnet.position.y - localFloorY);
 
-        // Joint configuration (6)
+        // joint configuration: actual joint angles, not drive targets
         float baseAngle = GetJointAngle(baseRotation);
         float shoulderAngle = GetJointAngle(shoulderJoint);
         float elbowAngle = GetJointAngle(elbowJoint);
         sensor.AddObservation(baseAngle);
         sensor.AddObservation(shoulderAngle);
         sensor.AddObservation(elbowAngle);
-        currentJointAngles = new Vector2(shoulderAngle, elbowAngle);
         sensor.AddObservation(baseRotation != null ? baseRotation.velocity[0] : 0f);
         sensor.AddObservation(shoulderJoint != null ? shoulderJoint.velocity[0] : 0f);
         sensor.AddObservation(elbowJoint != null ? elbowJoint.velocity[0] : 0f);
 
-        // Velocity data (6)
-        sensor.AddObservation(boxVel);
+        // velocity data: transform to local space for training area independence
+        sensor.AddObservation(transform.InverseTransformDirection(boxVel));
         magnetVelocity = (magnet.position - previousMagnetPosition) / Time.fixedDeltaTime;
-        sensor.AddObservation(magnetVelocity);
+        sensor.AddObservation(transform.InverseTransformDirection(magnetVelocity));
         previousMagnetPosition = magnet.position;
 
-        // State flags (7)
+        // state flags
         sensor.AddObservation(isBoxAttached ? 1f : 0f);
         sensor.AddObservation(distanceToBox < magneticRange ? 1f : 0f);
         sensor.AddObservation(Vector3.Distance(boxPos, targetPosition) < 0.5f ? 1f : 0f);
         float timeElapsed = Time.time - episodeStartTime;
         sensor.AddObservation(Mathf.Clamp01(timeElapsed / 60f));
-        // Use local box height relative to this training area's floor
+        // use local box height relative to this training area's floor
         sensor.AddObservation(boxPos.y - localFloorY);
         float improvementRate = (previousDistanceToTarget - distanceToTarget) / Time.fixedDeltaTime;
         sensor.AddObservation(improvementRate);
@@ -259,7 +251,7 @@ public class RobotAgent : Agent
         float energyThisStep = CalculateEnergyConsumption(baseControl, shoulderControl, elbowControl);
         totalEnergyConsumed += energyThisStep;
 
-        // Power budget check
+        // power budget check
         if (usePowerBudget)
         {
             currentPower -= energyThisStep;
@@ -308,12 +300,21 @@ public class RobotAgent : Agent
             baseAngle = GetJointAngle(baseRotation),
             shoulderAngle = GetJointAngle(shoulderJoint),
             elbowAngle = GetJointAngle(elbowJoint),
+            magnetAngle = GetJointAngle(magnet),
             baseVelocity = baseRotation != null ? baseRotation.velocity[0] : 0f,
             shoulderVelocity = shoulderJoint != null ? shoulderJoint.velocity[0] : 0f,
             elbowVelocity = elbowJoint != null ? elbowJoint.velocity[0] : 0f,
             baseControl = baseControl,
             shoulderControl = shoulderControl,
             elbowControl = elbowControl,
+            baseTorque = GetJointTorque(baseRotation), 
+            shoulderTorque = GetJointToque(shoulderControl),
+            elbowTorque = getJointTorque(elbowControl),
+            shoulderTorque = shoulderTorque, 
+            elbowTorque = elbowTorque,
+            basePower = baseVelocity * baseTorque,
+            shoulderPower = shoulderVelocity * shoulderTorque,
+            elbowPower = elbowVelocity * 
             magnetPosition = magnet.position,
             magnetVelocity = magnetVelocity,
             boxPosition = movableBox != null ? movableBox.position : boxStartPosition,
@@ -327,12 +328,12 @@ public class RobotAgent : Agent
 
     private void CalculateRewards(float energyThisStep)
     {
-        // Distance improvement reward
+        // distance improvement reward
         float distanceImprovement = previousDistanceToTarget - distanceToTarget;
         AddReward(distanceImprovement * 2f * rewardMultiplier);
         previousDistanceToTarget = distanceToTarget;
 
-        Vector3 boxPos = movableBox != null ? movableBox.position : boxStartPosition;
+        Vector3 boxPos = movableBox?.position ?? boxStartPosition;
         float distanceToBox = Vector3.Distance(magnet.position, boxPos);
         
         if (!isBoxAttached)
@@ -348,24 +349,25 @@ public class RobotAgent : Agent
         }
         else
         {
-            // Only reward holding if ALSO making progress toward target
+            // only reward holding if ALSO making progress toward target
             if (distanceImprovement > 0)
             {
-                AddReward(0.5f * rewardMultiplier);
+                // scaled to NOT dwarf the success reward (0.02/frame * ~50 frames ≈ 1.0 total)
+                AddReward(0.02f * rewardMultiplier);
                 
-                // Bonus for smooth movement ONLY when also improving distance
+                // bonus for smooth movement ONLY when also improving distance
                 if (magnetVelocity.magnitude < 1.5f && magnetVelocity.magnitude > 0.1f)
                 {
-                    AddReward(0.01f * rewardMultiplier);
+                    AddReward(0.005f * rewardMultiplier);
                 }
             }
         }
 
-        // Energy penalty - use INCREMENTAL energy, not cumulative
-        AddReward(-0.005f * energyThisStep);
-        AddReward(-0.0001f);  // Time penalty
+        // energy penalty - use INCREMENTAL energy, not cumulative
+        AddReward(-0.005f * energyThisStep * rewardMultiplier);
+        AddReward(-0.0001f * rewardMultiplier);  // time penalty
 
-        // Penalize excessive/jerky movement while holding
+        // penalize excessive/jerky movement while holding
         if (isBoxAttached)
         {
             float excessiveMovement = magnetVelocity.magnitude;
@@ -375,28 +377,28 @@ public class RobotAgent : Agent
             }
         }
 
-        // Success!
+        // success!
         if (distanceToTarget < 0.5f)
         {
             float baseReward = 20f;
             
-            // Bonus for completing with power remaining (ONLY at episode end)
+            // bonus for completing with power remaining (ONLY at episode end)
             if (usePowerBudget)
             {
                 float powerEfficiency = currentPower / maxPowerBudget;
-                float powerBonus = powerEfficiency * 15f;  // Up to 15 bonus for 100% power remaining
+                float powerBonus = powerEfficiency * 15f;  // up to 15 bonus for 100% power remaining
                 baseReward += powerBonus;
             }
             
-            // Bonus for completing quickly
+            // bonus for completing quickly
             float timeTaken = Time.time - episodeStartTime;
-            if (timeTaken < 30f)  // Under 30 seconds
+            if (timeTaken < 30f)  // under 30 seconds
             {
                 float timeBonus = (30f - timeTaken) / 30f * 5f;
                 baseReward += timeBonus;
             }
             
-            // Bonus for energy efficiency (total energy used)
+            // bonus for energy efficiency (total energy used)
             float energyEfficiencyBonus = Mathf.Max(0f, 5f - totalEnergyConsumed * 0.1f);
             baseReward += energyEfficiencyBonus;
             
@@ -414,10 +416,10 @@ public class RobotAgent : Agent
 
     private void CheckEpisodeEnd()
     {
-        // Get local floor height for this training area
+        // get local floor height for this training area
         float floorY = floor != null ? floor.position.y : transform.position.y;
         
-        // Box fell through/off floor
+        // box fell through/off floor
         if (movableBox != null && movableBox.position.y < floorY - 1f)
         {
             AddReward(-10f);
@@ -429,7 +431,7 @@ public class RobotAgent : Agent
             return;
         }
 
-        // Max time exceeded
+        // max time exceeded
         if (Time.time - episodeStartTime > 60f)
         {
             AddReward(-3f);
@@ -441,7 +443,7 @@ public class RobotAgent : Agent
             return;
         }
 
-        // Magnet went out of bounds - use LOCAL position relative to training area
+        // magnet went out of bounds - use LOCAL position relative to training area
         Vector3 localMagnetPos = magnet.position - transform.position;
         if (magnet.position.y < floorY - 2f || localMagnetPos.magnitude > 20f)
         {
@@ -458,10 +460,10 @@ public class RobotAgent : Agent
     {
         float timeTaken = Time.time - episodeStartTime;
         float totalDistance = Vector3.Distance(boxStartPosition, targetPosition);
-        float accuracy = totalDistance > 0.01f ? 1f - (distanceToTarget / totalDistance) : 0f;
+        float accuracy = totalDistance > 0.01f ? 1f - distanceToTarget / totalDistance : 0f;
         accuracy = Mathf.Clamp01(accuracy);
 
-        // Add physics data to current episode data
+        // add physics data to current episode data
         if (collectDetailedPhysics && currentPhysicsData != null)
         {
             currentPhysicsData.timeTaken = timeTaken;
@@ -471,10 +473,10 @@ public class RobotAgent : Agent
             currentPhysicsData.endTime = Time.time;
         }
 
-        // Send to data collector
+        // send to data collector
         dataCollector.RecordEpisode(timeTaken, accuracy, totalEnergyConsumed, success, currentPhysicsData);
         
-        // NEW: Report to performance tracker
+        // NEW: report to performance tracker
         if (PerformanceTracker.Instance != null)
         {
             PerformanceTracker.Instance.RecordEpisode(this, success, timeTaken, totalEnergyConsumed, accuracy);
@@ -487,24 +489,13 @@ public class RobotAgent : Agent
 
         var drive = joint.xDrive;
         
-        // Debug: Check if limits are preventing movement (log every 200 frames)
-        if (Time.frameCount % 200 == 0)
-        {
-            Debug.Log($"<color=orange>{joint.name}: Target={drive.target:F1}, Limits=[{drive.lowerLimit}, {drive.upperLimit}], Control={control:F2}</color>");
-        }
-        
-        // Check if limits are too restrictive
-        if (drive.lowerLimit == 0 && drive.upperLimit == 0)
-        {
-            Debug.LogWarning($"<color=red>{joint.name} has limits [0,0] - joint cannot move! Set proper limits in ArticulationBody.</color>");
-        }
-        
-        // Apply action smoothing
+        // apply action smoothing
         float desiredTarget = drive.target + control * movementSpeed * Time.fixedDeltaTime;
         drive.target = Mathf.Lerp(drive.target, desiredTarget, actionSmoothing);
 
-        // Joint limit penalty (safety zones)
-        if (drive.target <= drive.lowerLimit + 1f || drive.target >= drive.upperLimit - 1f)
+        // joint limit penalty — use ACTUAL joint angle, not drive target
+        float actualAngle = joint.jointPosition[0] * Mathf.Rad2Deg;
+        if (actualAngle <= drive.lowerLimit + 1f || actualAngle >= drive.upperLimit - 1f)
         {
             AddReward(jointLimitPenalty);
         }
@@ -584,47 +575,49 @@ public class RobotAgent : Agent
     private float GetJointAngle(ArticulationBody joint)
     {
         if (joint == null) return 0f;
-        return joint.xDrive.target;
+        // use actual joint position, NOT drive target — the target is what the motor
+        // is trying to reach, but actual angle can differ due to inertia/load
+        return joint.jointPosition[0] * Mathf.Rad2Deg;
     }
 
     private void GenerateRandomPositions()
     {
-        // Circular workspace randomization for box start and target positions
-        // Works around the robot base within defined radius
+        // circular workspace randomization for box start and target positions
+        // works around the robot base within defined radius
         // CONSTRAINT: Start and end must be at least 100 degrees apart (both CW and CCW)
         //             and at the SAME radius from the center
         // IMPORTANT: Positions are LOCAL to the training area, then converted to world space
-        Vector3 areaOrigin = transform.position;  // This agent's training area origin
+        Vector3 areaOrigin = transform.position;  // this agent's training area origin
         float floorY = floor != null ? floor.position.y : areaOrigin.y;
-        float boxHeight = 0.75f;  // Height above floor for box spawn
+        float boxHeight = 0.75f;  // height above floor for box spawn
         
-        // Use the same radius for both start and end positions
-        // Clamp to maxReach to ensure positions are reachable
-        float minRadius = Mathf.Max(1.5f, minDistance * 0.5f);  // Use minDistance
-        float maxRadius = Mathf.Min(workspaceRadius, maxReach);  // Use maxReach
+        // use the same radius for both start and end positions
+        // clamp to maxReach to ensure positions are reachable
+        float minRadius = Mathf.Max(1.5f, minDistance * 0.5f);  // use minDistance
+        float maxRadius = Mathf.Min(workspaceRadius, maxReach);  // use maxReach
         float sharedRadius = Random.Range(minRadius, maxRadius);
         
-        // Generate start angle randomly
+        // generate start angle randomly
         float startAngleDeg = Random.Range(0f, 360f);
         
-        // Generate end angle that is at least 100 degrees away in BOTH directions
-        // This means the end angle must be between 100 and 260 degrees away from start
+        // generate end angle that is at least 100 degrees away in BOTH directions
+        // this means the end angle must be between 100 and 260 degrees away from start
         // (100 to 260 ensures at least 100 deg CW and at least 100 deg CCW)
         float minSeparation = 100f;
         float maxSeparation = 360f - minSeparation; // 260 degrees
         float angleSeparation = Random.Range(minSeparation, maxSeparation);
         
-        // Randomly choose direction (CW or CCW)
+        // randomly choose direction (CW or CCW)
         if (Random.value > 0.5f)
             angleSeparation = -angleSeparation;
         
         float endAngleDeg = startAngleDeg + angleSeparation;
         
-        // Convert to radians
+        // convert to radians
         float startAngle = startAngleDeg * Mathf.Deg2Rad;
         float endAngle = endAngleDeg * Mathf.Deg2Rad;
         
-        // Use floor-relative Y position
+        // use floor-relative Y position
         Vector3 localStartPos = new Vector3(Mathf.Cos(startAngle) * sharedRadius, floorY + boxHeight - areaOrigin.y, Mathf.Sin(startAngle) * sharedRadius);
         boxStartPosition = areaOrigin + localStartPos;
 
@@ -635,7 +628,7 @@ public class RobotAgent : Agent
         if (targetZoneB) targetZoneB.position = new Vector3(targetPosition.x, floorY + 0.05f, targetPosition.z);
     }
 
-    private void ResetRobotArm()
+    private void ResetRobotArm() // reset joints to default positions at episode start
     {
         if (baseRotation != null)
         {
@@ -662,7 +655,7 @@ public class RobotAgent : Agent
         }
     }
 
-    public void OnMagnetTriggerEnter(Collider other)
+    public void OnMagnetTriggerEnter(Collider other) // magnet inbound trigger event handler
     {
         if (other.attachedRigidbody == movableBox && !isBoxAttached)
         {
@@ -682,10 +675,10 @@ public class RobotAgent : Agent
 
         isBoxAttached = true;
         AddReward(1f * rewardMultiplier);
-        // Debug logging removed to prevent console spam during parallel training
+        // debug logging removed to prevent console spam during parallel training
     }
 
-    private void DetachBox()
+    private void DetachBox() // detach the box from the magnet
     {
         if (magnetJoint != null)
         {
@@ -695,7 +688,16 @@ public class RobotAgent : Agent
         isBoxAttached = false;
     }
 
-    void OnDrawGizmos()
+    // Called by Unity when the FixedJoint breaks (force/torque exceeded).
+    // Syncs isBoxAttached state so the agent doesn't think it still has the box.
+    void OnJointBreak(float breakForce)
+    {
+        magnetJoint = null;
+        isBoxAttached = false;
+        AddReward(-1f * rewardMultiplier);  // penalty for dropping the box
+    }
+
+    void OnDrawGizmos() // visualize magnet range 
     {
         if (!visualizeMagnetRange || magnet == null) return;
 
@@ -709,9 +711,20 @@ public class RobotAgent : Agent
         }
     }
 
-    void OnGUI()
+    void OnGUI() // generate simple on-screen HUD for debugging and performance tracking
     {
         if (!Application.isPlaying) return;
+
+        // only display for the first agent to prevent 100x overdraw in parallel training
+        if (CompletedEpisodes == 0 && totalAttempts <= 1)
+        {
+            // heuristic: only show if this is likely the "first" agent
+            // exact filtering can be done via PerformanceTracker if needed
+        }
+        else if (PerformanceTracker.Instance != null && !PerformanceTracker.Instance.IsBestPerformer(this))
+        {
+            return;  // only the best performer shows the HUD
+        }
 
         GUILayout.BeginArea(new Rect(10, 10, 350, 250));
         GUILayout.Label($"=== Robot Status ===");
@@ -748,6 +761,17 @@ public class MagnetTrigger : MonoBehaviour
     }
 
     void OnTriggerEnter(Collider other)
+    {
+        if (agent != null)
+        {
+            agent.OnMagnetTriggerEnter(other);
+        }
+    }
+
+    // also handle OnTriggerStay: if the box is teleported INTO the trigger
+    // (e.g., at episode start), OnTriggerEnter won't fire because there's no
+    // "enter" event — the box was placed inside. This catches that edge case.
+    void OnTriggerStay(Collider other)
     {
         if (agent != null)
         {
