@@ -34,6 +34,14 @@ public class RobotAgent : Agent
     [SerializeField] private float movementSpeed = 50f;
     [SerializeField] private float rewardMultiplier = 1f;
 
+    [Header("Auto-Scaling (for large arms)")]
+    [Tooltip("Automatically scale motor forces based on arm dimensions")]
+    [SerializeField] private bool autoScaleForces = true;
+    [SerializeField] private float baseStiffness = 100000f;
+    [SerializeField] private float baseDamping = 10000f;
+    [SerializeField] private float baseForceLimit = 100000f;
+    private float armScaleFactor = 1f;
+
     [Header("Power Budget System")]
     [SerializeField] private bool usePowerBudget = false;
     [SerializeField] private float maxPowerBudget = 100f;
@@ -91,6 +99,12 @@ public class RobotAgent : Agent
         if (dataCollector == null)
         {
             dataCollector = gameObject.AddComponent<DataCollector>();
+        }
+
+        // Configure joint drives based on arm scale
+        if (autoScaleForces)
+        {
+            ConfigureJointDrives();
         }
 
         boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
@@ -231,6 +245,12 @@ public class RobotAgent : Agent
         float baseControl = Mathf.Clamp(actions.ContinuousActions[0], -1f, 1f);
         float shoulderControl = Mathf.Clamp(actions.ContinuousActions[1], -1f, 1f);
         float elbowControl = Mathf.Clamp(actions.ContinuousActions[2], -1f, 1f);
+
+        // Debug: Log actions every 100 frames
+        if (Time.frameCount % 100 == 0)
+        {
+            Debug.Log($"<color=green>Actions: Base={baseControl:F2}, Shoulder={shoulderControl:F2}, Elbow={elbowControl:F2}</color>");
+        }
 
         ApplyJointTorque(baseRotation, baseControl);
         ApplyJointTorque(shoulderJoint, shoulderControl);
@@ -467,6 +487,18 @@ public class RobotAgent : Agent
 
         var drive = joint.xDrive;
         
+        // Debug: Check if limits are preventing movement (log every 200 frames)
+        if (Time.frameCount % 200 == 0)
+        {
+            Debug.Log($"<color=orange>{joint.name}: Target={drive.target:F1}, Limits=[{drive.lowerLimit}, {drive.upperLimit}], Control={control:F2}</color>");
+        }
+        
+        // Check if limits are too restrictive
+        if (drive.lowerLimit == 0 && drive.upperLimit == 0)
+        {
+            Debug.LogWarning($"<color=red>{joint.name} has limits [0,0] - joint cannot move! Set proper limits in ArticulationBody.</color>");
+        }
+        
         // Apply action smoothing
         float desiredTarget = drive.target + control * movementSpeed * Time.fixedDeltaTime;
         drive.target = Mathf.Lerp(drive.target, desiredTarget, actionSmoothing);
@@ -479,6 +511,74 @@ public class RobotAgent : Agent
 
         drive.target = Mathf.Clamp(drive.target, drive.lowerLimit, drive.upperLimit);
         joint.xDrive = drive;
+    }
+
+    private void ConfigureJointDrives()
+    {
+        Debug.Log("<color=magenta>=== RobotArm Joint Configuration ===</color>");
+        
+        // Diagnostic: Check if joints are assigned
+        Debug.Log($"baseRotation: {(baseRotation != null ? "OK" : "NULL")}");
+        Debug.Log($"shoulderJoint: {(shoulderJoint != null ? "OK" : "NULL")}");
+        Debug.Log($"elbowJoint: {(elbowJoint != null ? "OK" : "NULL")}");
+        Debug.Log($"magnet: {(magnet != null ? "OK" : "NULL")}");
+        
+        // Calculate arm scale factor based on distance from base to magnet
+        if (magnet != null && baseRotation != null)
+        {
+            float armLength = Vector3.Distance(baseRotation.transform.position, magnet.position);
+            // Reference arm length is 1 unit; scale forces by length^2 (inertia scales with distance squared)
+            armScaleFactor = Mathf.Max(1f, armLength * armLength);
+            Debug.Log($"<color=cyan>RobotArm Auto-Scale: Arm length = {armLength:F2}, Scale factor = {armScaleFactor:F1}</color>");
+        }
+        else
+        {
+            armScaleFactor = 64f; // Default for ~8 unit arm
+            Debug.LogWarning("Could not measure arm length, using default scale factor of 64");
+        }
+
+        // Apply scaled drive settings to each joint
+        ConfigureSingleJointDrive(baseRotation, "Base");
+        ConfigureSingleJointDrive(shoulderJoint, "Shoulder");
+        ConfigureSingleJointDrive(elbowJoint, "Elbow");
+    }
+
+    private void ConfigureSingleJointDrive(ArticulationBody joint, string jointName)
+    {
+        if (joint == null)
+        {
+            Debug.LogError($"<color=red>{jointName} joint is NULL - cannot configure!</color>");
+            return;
+        }
+
+        // Log joint type
+        Debug.Log($"<color=white>{jointName} JointType: {joint.jointType}</color>");
+        
+        if (joint.jointType == ArticulationJointType.FixedJoint)
+        {
+            Debug.LogError($"<color=red>{jointName} is a FIXED joint - it cannot move! Change to RevoluteJoint in Inspector.</color>");
+            return;
+        }
+
+        var drive = joint.xDrive;
+        
+        // Ensure drive type is set to Target (position-based control)
+        drive.driveType = ArticulationDriveType.Target;
+        
+        // Fix joint limits if they're zero (common mistake)
+        if (drive.lowerLimit == 0 && drive.upperLimit == 0)
+        {
+            Debug.LogWarning($"<color=orange>{jointName} has [0,0] limits - setting default [-180, 180]</color>");
+            drive.lowerLimit = -180f;
+            drive.upperLimit = 180f;
+        }
+        
+        drive.stiffness = baseStiffness * armScaleFactor;
+        drive.damping = baseDamping * armScaleFactor;
+        drive.forceLimit = baseForceLimit * armScaleFactor;
+        joint.xDrive = drive;
+
+        Debug.Log($"<color=yellow>{jointName} Drive: Stiffness={drive.stiffness:F0}, Damping={drive.damping:F0}, ForceLimit={drive.forceLimit:F0}, Limits=[{drive.lowerLimit}, {drive.upperLimit}]</color>");
     }
 
     private float GetJointAngle(ArticulationBody joint)

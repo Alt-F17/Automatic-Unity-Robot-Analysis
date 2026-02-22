@@ -1,0 +1,65 @@
+{
+    "RobotArm": {
+        "checkpoints": [
+            {
+                "steps": 149796,
+                "file_path": "results\\RobotArm_V3\\RobotArm\\RobotArm-149796.onnx",
+                "reward": null,
+                "creation_time": 1770261545.228142,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V3\\RobotArm\\RobotArm-149796.pt"
+                ]
+            },
+            {
+                "steps": 199812,
+                "file_path": "results\\RobotArm_V3\\RobotArm\\RobotArm-199812.onnx",
+                "reward": -6.5330259674787525,
+                "creation_time": 1770261561.5179372,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V3\\RobotArm\\RobotArm-199812.pt"
+                ]
+            },
+            {
+                "steps": 249828,
+                "file_path": "results\\RobotArm_V3\\RobotArm\\RobotArm-249828.onnx",
+                "reward": -6.3499510383605955,
+                "creation_time": 1770261591.5847023,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V3\\RobotArm\\RobotArm-249828.pt"
+                ]
+            },
+            {
+                "steps": 299933,
+                "file_path": "results\\RobotArm_V3\\RobotArm\\RobotArm-299933.onnx",
+                "reward": -8.771259523544115,
+                "creation_time": 1770261620.5701134,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V3\\RobotArm\\RobotArm-299933.pt"
+                ]
+            },
+            {
+                "steps": 325800,
+                "file_path": "results\\RobotArm_V3\\RobotArm\\RobotArm-325800.onnx",
+                "reward": null,
+                "creation_time": 1770261633.4829202,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V3\\RobotArm\\RobotArm-325800.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 325800,
+            "file_path": "results\\RobotArm_V3\\RobotArm.onnx",
+            "reward": null,
+            "creation_time": 1770261633.4829202,
+            "auxillary_file_paths": [
+                "results\\RobotArm_V3\\RobotArm\\RobotArm-325800.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.0.0",
+        "torch_version": "1.13.1+cpu"
+    }
+}
