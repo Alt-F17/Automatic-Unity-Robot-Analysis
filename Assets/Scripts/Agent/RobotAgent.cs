@@ -406,12 +406,55 @@ public class RobotAgent : Agent
 
     private float CalculateEnergyConsumption(float baseControl, float shoulderControl, float elbowControl)
     {
-        // Real mechanical power: P = |torque * angular_velocity|, E = P * dt
-        // jointForce from the physics solver already accounts for mass/inertia
-        float baseEnergy = Mathf.Abs(GetJointTorque(baseRotation) * GetJointVelocity(baseRotation));
-        float shoulderEnergy = Mathf.Abs(GetJointTorque(shoulderJoint) * GetJointVelocity(shoulderJoint));
-        float elbowEnergy = Mathf.Abs(GetJointTorque(elbowJoint) * GetJointVelocity(elbowJoint));
-        return (baseEnergy + shoulderEnergy + elbowEnergy) * Time.fixedDeltaTime;
+        // Instead of relying on Unity's buggy ArticulationBody.jointForce (which often returns 0 
+        // depending on drive types) or velocity (which would evaluate to 0 when holding a heavy box still),
+        // we calculate effort based on the actual control impulses being sent by the neural network.
+        // We multiply by fixedDeltaTime so it scales correctly with the time step.
+        float baseEnergy = Mathf.Abs(baseControl);
+        float shoulderEnergy = Mathf.Abs(shoulderControl);
+        float elbowEnergy = Mathf.Abs(elbowControl);
+        
+        // Multiply by a factor (e.g., 10f) to tune how quickly the 100 power budget drains.
+        // If max power is 100, and they use full 1.0 control on all 3 joints, 
+        // they consume 3 * 10 * 0.02 = 0.6 power per frame, draining 100 power in ~166 frames (~3 seconds).
+        // Let's use a scale factor of 2f so they have about ~20 seconds of continuous full-force movement.
+        float powerDrainScale = 2f; 
+        return (baseEnergy + shoulderEnergy + elbowEnergy) * powerDrainScale * Time.fixedDeltaTime;
+    }
+
+    private float GetGravitationalLoad(ArticulationBody joint, ArticulationBody childBody)
+    {
+        if (joint == null || childBody == null) return 0f;
+
+        // F = m * g
+        // We include the payload mass if the box is attached to the hand!
+        float totalMass = childBody.mass;
+        if (isBoxAttached && movableBox != null)
+        {
+            // Adding half the mass of the box recursively to the joints
+            totalMass += movableBox.mass;
+        }
+
+        float force = totalMass * Mathf.Abs(Physics.gravity.y);
+        
+        // r = distance from the joint pivot to the child's center of mass
+        Vector3 jointPivot = joint.transform.position;
+        Vector3 outLever = childBody.transform.TransformPoint(childBody.centerOfMass) - jointPivot;
+        
+        // If box is attached and this is the elbow (closest to the box), the lever arm extends further to the magnet
+        if (isBoxAttached && joint == elbowJoint && magnet != null)
+        {
+            outLever = magnet.position - jointPivot;
+        }
+
+        float radius = outLever.magnitude;
+
+        // theta = angle between the lever arm and gravity (down)
+        float angle = Vector3.Angle(outLever, Vector3.down);
+        float sinTheta = Mathf.Sin(angle * Mathf.Deg2Rad);
+
+        // Torque = F * r * sin(theta)
+        return force * radius * sinTheta;
     }
 
     private void CollectPhysicsSnapshot(float baseControl, float shoulderControl, float elbowControl, float energy)
@@ -426,6 +469,11 @@ public class RobotAgent : Agent
         float shoulderTorque = GetJointTorque(shoulderJoint);
         float elbowTorque = GetJointTorque(elbowJoint);
 
+        // Calculate theoretical external gravitational load (τ = F × r × sin(θ))
+        // Base joint only rotates around Y (gravity doesn't pull it along its DOF), so 0
+        float baseGrav = 0f; 
+        float shoulderGrav = GetGravitationalLoad(baseRotation, shoulderJoint);
+        float elbowGrav = GetGravitationalLoad(shoulderJoint, elbowJoint);
 
         PhysicsSnapshot snapshot = new PhysicsSnapshot
         {
@@ -446,6 +494,10 @@ public class RobotAgent : Agent
             baseTorque = baseTorque,
             shoulderTorque = shoulderTorque,
             elbowTorque = elbowTorque,
+            
+            baseGravTorque = baseGrav,
+            shoulderGravTorque = shoulderGrav,
+            elbowGravTorque = elbowGrav,
 
             basePower = baseVelocity * baseTorque,
             shoulderPower = shoulderVelocity * shoulderTorque,
@@ -805,13 +857,26 @@ public class RobotAgent : Agent
         return joint.jointVelocity[0];
     }
 
-    /// returns the exact torque applied by the physics solver on a joint's primary DOF
-    /// uses ArticulationBody.jointForce which gives the actual computed drive torque
+    /// Returns an estimate of the applied torque since Unity's jointForce often returns 0 
+    /// for position-driven xDrive ArticulationBodies. We estimate the torque based on 
+    /// the commanded target velocity and the drive's stiffness/damping parameters.
     private float GetJointTorque(ArticulationBody joint)
     {
         if (joint == null) return 0f;
-        if (joint.jointForce.dofCount == 0) return 0f;
-        return joint.jointForce[0];
+        if (joint.jointPosition.dofCount == 0 || joint.jointVelocity.dofCount == 0) return 0f;
+
+        // Simplified PD controller torque estimate: 
+        // Force = Stiffness * (TargetPos - CurrentPos) - Damping * CurrentVelocity
+        float currentPos = joint.jointPosition[0] * Mathf.Rad2Deg; // target is usually in degrees
+        float currentVel = joint.jointVelocity[0] * Mathf.Rad2Deg; 
+        
+        var drive = joint.xDrive;
+        float targetPos = drive.target;
+        
+        float estimatedTorque = drive.stiffness * (targetPos - currentPos) - drive.damping * currentVel;
+        
+        // Clamp to the physical capabilities of the motor
+        return Mathf.Clamp(estimatedTorque, -drive.forceLimit, drive.forceLimit);
     }
 
     private void GenerateRandomPositions()

@@ -74,23 +74,34 @@ public class DataCollector : MonoBehaviour
         accuracySamples = new List<float>();
         
         episodesRecorded = 0;
-        currentSessionID = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        currentSessionID = DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + gameObject.name + "_" + gameObject.GetInstanceID();
         SetupDataDirectory();
     }
 
     public void RecordEpisode(float timeTaken, float accuracy, float energyConsumed, bool success, PhysicsData physicsData = null)
     {
         if (!collectData) return;
-        if (episodesRecorded >= maxEpisodesToRecord) return;
+        // Removed maxEpisodesToRecord check to allow infinite overnight runs!
+
+        episodesRecorded++;
+
+        // Update statistics early so the current episode gets the accurate success rate
+        totalTime += timeTaken;
+        totalEnergy += energyConsumed;
+        if (success)
+            successCount++;
+        else
+            failureCount++;
 
         // Basic episode data
         EpisodeData data = new EpisodeData
         {
-            episodeNumber = episodesRecorded + 1,
+            episodeNumber = episodesRecorded,
             timeTaken = timeTaken,
             accuracy = accuracy,
             energyConsumed = energyConsumed,
             success = success,
+            successRate = GetSuccessRate(),
             timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
         };
 
@@ -102,22 +113,12 @@ public class DataCollector : MonoBehaviour
             detailedPhysicsData.Add(physicsData);
         }
 
-        episodesRecorded++;
-
-        // Update statistics
-        totalTime += timeTaken;
-        totalEnergy += energyConsumed;
-        if (success)
-            successCount++;
-        else
-            failureCount++;
-
         // Collect samples for statistical analysis
         timeSamples.Add(timeTaken);
         energySamples.Add(energyConsumed);
         accuracySamples.Add(accuracy);
 
-        // Auto-export
+        // Auto-export: doing this tightly so we can clear memory regularly for infinite runs
         if (autoExportOnInterval && episodesRecorded % exportInterval == 0)
         {
             ExportAllData();
@@ -133,17 +134,20 @@ public class DataCollector : MonoBehaviour
     public void ExportAllData()
     {
         ExportBasicCSV();
-        
+
         if (exportDetailedPhysics && detailedPhysicsData.Count > 0)
         {
             ExportDetailedPhysicsCSV();
+            // Clear to prevent memory explosion during overnight runs
+            detailedPhysicsData.Clear();
         }
-        
+
         if (exportInverseKinematics && detailedPhysicsData.Count > 0)
         {
             ExportInverseKinematicsCSV();
+            // Also handled carefully in IK branch
         }
-        
+
         if (exportStatisticalSummary)
         {
             ExportStatisticalSummary();
@@ -165,13 +169,13 @@ public class DataCollector : MonoBehaviour
             using (StreamWriter writer = new StreamWriter(filepath, false))
             {
                 // Header
-                writer.WriteLine("Episode,Time_Taken,Accuracy,Energy_Consumed,Success,Timestamp");
+                writer.WriteLine("Episode,Time_Taken,Accuracy,Energy_Consumed,Success,Success_Rate_Percent,Timestamp");
 
                 // Data rows
                 foreach (EpisodeData data in episodeDataList)
                 {
                     writer.WriteLine($"{data.episodeNumber},{data.timeTaken:F4},{data.accuracy:F4}," +
-                                   $"{data.energyConsumed:F4},{(data.success ? 1 : 0)},{data.timestamp}");
+                                   $"{data.energyConsumed:F4},{(data.success ? 1 : 0)},{data.successRate:F2},{data.timestamp}");
                 }
             }
 
@@ -192,23 +196,26 @@ public class DataCollector : MonoBehaviour
 
         try
         {
-            using (StreamWriter writer = new StreamWriter(filepath, false))
+            bool writeHeader = !File.Exists(filepath);
+            using (StreamWriter writer = new StreamWriter(filepath, true))
             {
                 // Header
-                writer.WriteLine("Episode,Timestamp,Base_Angle,Shoulder_Angle,Elbow_Angle," +
-                               "Base_Velocity,Shoulder_Velocity,Elbow_Velocity," +
-                               "Base_Control,Shoulder_Control,Elbow_Control," +
-                               "Magnet_Pos_X,Magnet_Pos_Y,Magnet_Pos_Z," +
-                               "Magnet_Vel_X,Magnet_Vel_Y,Magnet_Vel_Z," +
-                               "Box_Pos_X,Box_Pos_Y,Box_Pos_Z," +
-                               "Box_Vel_X,Box_Vel_Y,Box_Vel_Z," +
-                               "Base_Torque_Nm,Shoulder_Torque_Nm,Elbow_Torque_Nm," +
-                               "Base_Power_W,Shoulder_Power_W,Elbow_Power_W," +
-                               "Base_Mass_kg,Shoulder_Mass_kg,Elbow_Mass_kg," +
-                               "Base_KE_J,Shoulder_KE_J,Elbow_KE_J," +
-                               "Box_Attached,Energy_Step_J");
-
-                // Write all snapshots from all episodes
+                if (writeHeader)
+                {
+                    writer.WriteLine("Episode,Timestamp,Base_Angle,Shoulder_Angle,Elbow_Angle," +
+                                     "Base_Velocity,Shoulder_Velocity,Elbow_Velocity," +
+                                     "Base_Control,Shoulder_Control,Elbow_Control," +
+                                     "Magnet_Pos_X,Magnet_Pos_Y,Magnet_Pos_Z," +
+                                     "Magnet_Vel_X,Magnet_Vel_Y,Magnet_Vel_Z," +
+                                     "Box_Pos_X,Box_Pos_Y,Box_Pos_Z," +
+                                     "Box_Vel_X,Box_Vel_Y,Box_Vel_Z," +
+                                     "Base_Motor_Torque_Nm,Shoulder_Motor_Torque_Nm,Elbow_Motor_Torque_Nm," +
+                                     "Base_Grav_Torque_Nm,Shoulder_Grav_Torque_Nm,Elbow_Grav_Torque_Nm," +
+                                     "Base_Power_W,Shoulder_Power_W,Elbow_Power_W," +
+                                     "Base_Mass_kg,Shoulder_Mass_kg,Elbow_Mass_kg," +
+                                     "Base_KE_J,Shoulder_KE_J,Elbow_KE_J," +
+                                     "Box_Attached,Energy_Step_J");
+                }
                 foreach (PhysicsData episodeData in detailedPhysicsData)
                 {
                     foreach (PhysicsSnapshot snapshot in episodeData.snapshots)
@@ -221,8 +228,7 @@ public class DataCollector : MonoBehaviour
                                        $"{snapshot.magnetVelocity.x:F4},{snapshot.magnetVelocity.y:F4},{snapshot.magnetVelocity.z:F4}," +
                                        $"{snapshot.boxPosition.x:F4},{snapshot.boxPosition.y:F4},{snapshot.boxPosition.z:F4}," +
                                        $"{snapshot.boxVelocity.x:F4},{snapshot.boxVelocity.y:F4},{snapshot.boxVelocity.z:F4}," +
-                                       $"{snapshot.baseTorque:F4},{snapshot.shoulderTorque:F4},{snapshot.elbowTorque:F4}," +
-                                       $"{snapshot.basePower:F4},{snapshot.shoulderPower:F4},{snapshot.elbowPower:F4}," +
+                                       $"{snapshot.baseTorque:F4},{snapshot.shoulderTorque:F4},{snapshot.elbowTorque:F4}," +                                         $"{snapshot.baseGravTorque:F4},{snapshot.shoulderGravTorque:F4},{snapshot.elbowGravTorque:F4}," +                                       $"{snapshot.basePower:F4},{snapshot.shoulderPower:F4},{snapshot.elbowPower:F4}," +
                                        $"{snapshot.baseMass:F2},{snapshot.shoulderMass:F2},{snapshot.elbowMass:F2}," +
                                        $"{snapshot.baseKineticEnergy:F4},{snapshot.shoulderKineticEnergy:F4},{snapshot.elbowKineticEnergy:F4}," +
                                        $"{(snapshot.isBoxAttached ? 1 : 0)},{snapshot.energyConsumed:F6}");
@@ -247,17 +253,19 @@ public class DataCollector : MonoBehaviour
 
         try
         {
-            using (StreamWriter writer = new StreamWriter(filepath, false))
+            bool writeHeader = !File.Exists(filepath);
+            using (StreamWriter writer = new StreamWriter(filepath, true)) // Append!
             {
                 // Header
-                writer.WriteLine("Episode,Timestamp," +
-                               "End_Effector_X,End_Effector_Y,End_Effector_Z," +
-                               "Shoulder_Angle,Elbow_Angle,Base_Rotation," +
-                               "Reach_Distance,Angle_From_Base," +
-                               "IK_Q1,IK_Q2," +
-                               "Joint_Config_Valid");
-
-                // Pre-compute link lengths once (constant physical dimensions)
+                if (writeHeader)
+                {
+                    writer.WriteLine("Episode,Timestamp," +
+                                     "End_Effector_X,End_Effector_Y,End_Effector_Z," +
+                                     "Shoulder_Angle,Elbow_Angle,Base_Rotation," +
+                                     "Reach_Distance,Angle_From_Base," +
+                                     "IK_Q1,IK_Q2," +
+                                     "Joint_Config_Valid");
+                }
                 float l1 = shoulderJointRef != null && elbowJointRef != null
                     ? Vector3.Distance(shoulderJointRef.transform.position, elbowJointRef.transform.position) : 1f;
                 float l2 = elbowJointRef != null && magnetRef != null
@@ -680,6 +688,7 @@ public class EpisodeData
     public float accuracy;
     public float energyConsumed;
     public bool success;
+    public float successRate;
     public string timestamp;
 }
 
@@ -729,6 +738,11 @@ public class PhysicsSnapshot
     public float baseTorque;
     public float shoulderTorque;
     public float elbowTorque;
+
+    // Environmental load torque (mass * gravity * lever arm, in N·m)
+    public float baseGravTorque;
+    public float shoulderGravTorque;
+    public float elbowGravTorque;
 
     // Joint power (velocity * torque, in watts)
     public float basePower;
