@@ -202,8 +202,11 @@ public class DataCollector : MonoBehaviour
                                "Magnet_Vel_X,Magnet_Vel_Y,Magnet_Vel_Z," +
                                "Box_Pos_X,Box_Pos_Y,Box_Pos_Z," +
                                "Box_Vel_X,Box_Vel_Y,Box_Vel_Z," +
-                               "Base_Torque,Shoulder_Torque,Elbow_Torque," +
-                               "Box_Attached,Energy_Step");
+                               "Base_Torque_Nm,Shoulder_Torque_Nm,Elbow_Torque_Nm," +
+                               "Base_Power_W,Shoulder_Power_W,Elbow_Power_W," +
+                               "Base_Mass_kg,Shoulder_Mass_kg,Elbow_Mass_kg," +
+                               "Base_KE_J,Shoulder_KE_J,Elbow_KE_J," +
+                               "Box_Attached,Energy_Step_J");
 
                 // Write all snapshots from all episodes
                 foreach (PhysicsData episodeData in detailedPhysicsData)
@@ -219,6 +222,9 @@ public class DataCollector : MonoBehaviour
                                        $"{snapshot.boxPosition.x:F4},{snapshot.boxPosition.y:F4},{snapshot.boxPosition.z:F4}," +
                                        $"{snapshot.boxVelocity.x:F4},{snapshot.boxVelocity.y:F4},{snapshot.boxVelocity.z:F4}," +
                                        $"{snapshot.baseTorque:F4},{snapshot.shoulderTorque:F4},{snapshot.elbowTorque:F4}," +
+                                       $"{snapshot.basePower:F4},{snapshot.shoulderPower:F4},{snapshot.elbowPower:F4}," +
+                                       $"{snapshot.baseMass:F2},{snapshot.shoulderMass:F2},{snapshot.elbowMass:F2}," +
+                                       $"{snapshot.baseKineticEnergy:F4},{snapshot.shoulderKineticEnergy:F4},{snapshot.elbowKineticEnergy:F4}," +
                                        $"{(snapshot.isBoxAttached ? 1 : 0)},{snapshot.energyConsumed:F6}");
                     }
                 }
@@ -264,7 +270,7 @@ public class DataCollector : MonoBehaviour
                     foreach (PhysicsSnapshot snapshot in episodeData.snapshots)
                     {
                         // Calculate derived kinematics values
-                        // just remember that the mass is 1kg 
+                        // Masses are read from ArticulationBody at runtime (set in Inspector)
                         Vector3 magnetPos = snapshot.magnetPosition;
                         Vector2 magnetPos2D = new Vector2(magnetPos.x, magnetPos.z);
                         float reachDistance = magnetPos2D.magnitude;
@@ -338,8 +344,8 @@ public class DataCollector : MonoBehaviour
                 writer.WriteLine($"Median Time: {Median(timeSamples):F4} seconds");
                 writer.WriteLine($"Mode Time: {Mode(timeSamples):F4} seconds (approx)");
                 writer.WriteLine();
-                writer.WriteLine($"Mean Energy: {Mean(energySamples):F4} units");
-                writer.WriteLine($"Median Energy: {Median(energySamples):F4} units");
+                writer.WriteLine($"Mean Energy: {Mean(energySamples):F4} J (torque*velocity*dt)");
+                writer.WriteLine($"Median Energy: {Median(energySamples):F4} J");
                 writer.WriteLine();
                 writer.WriteLine($"Mean Accuracy: {Mean(accuracySamples):F4}");
                 writer.WriteLine($"Median Accuracy: {Median(accuracySamples):F4}");
@@ -385,8 +391,8 @@ public class DataCollector : MonoBehaviour
                 {
                     writer.WriteLine($"Fastest Time: {successfulTimes.Min():F4} seconds");
                     writer.WriteLine($"Slowest Time: {successfulTimes.Max():F4} seconds");
-                    writer.WriteLine($"Lowest Energy: {successfulEnergies.Min():F4} units");
-                    writer.WriteLine($"Highest Energy: {successfulEnergies.Max():F4} units");
+                    writer.WriteLine($"Lowest Energy: {successfulEnergies.Min():F4} J");
+                    writer.WriteLine($"Highest Energy: {successfulEnergies.Max():F4} J");
                     writer.WriteLine($"Best Accuracy: {GetSuccessfulSamples(accuracySamples).Max():F4}");
                 }
                 writer.WriteLine();
@@ -719,17 +725,27 @@ public class PhysicsSnapshot
     public Vector3 boxVelocity;
     public bool isBoxAttached;
 
-    // Joint torque (exact, from physics solver)
+    // Joint torque (exact, from physics solver, in N·m)
     public float baseTorque;
     public float shoulderTorque;
     public float elbowTorque;
 
-    // Joint power (velocity * torque)
+    // Joint power (velocity * torque, in watts)
     public float basePower;
     public float shoulderPower;
     public float elbowPower;
+
+    // Joint masses (kg, from ArticulationBody)
+    public float baseMass;
+    public float shoulderMass;
+    public float elbowMass;
+
+    // Rotational kinetic energy per joint (joules)
+    public float baseKineticEnergy;
+    public float shoulderKineticEnergy;
+    public float elbowKineticEnergy;
     
-    // Energy
+    // Energy consumed this step (joules: torque * velocity * dt)
     public float energyConsumed;
 }
 

@@ -16,10 +16,10 @@ public class SimpleCameraController : MonoBehaviour
     void Update()
     {
         Vector3 move = Vector3.zero;
-        if (Input.GetKey(KeyCode.W)) move += transform.forward;
-        if (Input.GetKey(KeyCode.S)) move -= transform.forward;
-        if (Input.GetKey(KeyCode.A)) move -= transform.right;
-        if (Input.GetKey(KeyCode.D)) move += transform.right;
+        if (Input.GetKey(KeyCode.UpArrow)) move += transform.forward;
+        if (Input.GetKey(KeyCode.DownArrow)) move -= transform.forward;
+        if (Input.GetKey(KeyCode.LeftArrow)) move -= transform.right;
+        if (Input.GetKey(KeyCode.RightArrow)) move += transform.right;
         if (Input.GetKey(KeyCode.Space)) move += Vector3.up;
         if (Input.GetKey(KeyCode.LeftShift)) move -= Vector3.up;
         transform.position += move.normalized * moveSpeed * Time.deltaTime;

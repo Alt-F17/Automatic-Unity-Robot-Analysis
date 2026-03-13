@@ -63,6 +63,8 @@ public class PerformanceTracker : MonoBehaviour
     
     void Update()
     {
+        if (Instance != this || allRobots == null || performanceData == null) return;
+
         // periodically update who's the best
         if (Time.time - lastUpdateTime > updateInterval)
         {
@@ -99,15 +101,20 @@ public class PerformanceTracker : MonoBehaviour
     private void UpdateBestPerformer()
     {
         if (allRobots.Count == 0) return;
+
+        // prune stale/destroyed robot references
+        allRobots.RemoveAll(robot => robot == null);
+        if (allRobots.Count == 0) return;
         
         RobotAgent bestRobot = null;
         float bestScore = float.MinValue;
         
         foreach (RobotAgent robot in allRobots)
         {
-            if (!performanceData.ContainsKey(robot)) continue;
+            if (robot == null) continue;
+            if (!performanceData.TryGetValue(robot, out RobotPerformance perf) || perf == null) continue;
             
-            float score = CalculatePerformanceScore(performanceData[robot]);
+            float score = CalculatePerformanceScore(perf);
             
             if (score > bestScore)
             {
@@ -216,16 +223,18 @@ public class PerformanceTracker : MonoBehaviour
     void OnGUI()
     // GUI for best performer (right side of screen)
     {
+        if (Instance != this || allRobots == null || performanceData == null) return;
         if (!showDebugInfo || currentBestRobot == null) return;
+        if (currentBestRobot.gameObject == null) return;
         
         GUILayout.BeginArea(new Rect(Screen.width - 320, 10, 310, 200));
         
         GUILayout.Label("=== PERFORMANCE TRACKER ===");
-        GUILayout.Label($"Best Performer: {currentBestRobot.gameObject.name}");
+        string bestName = currentBestRobot != null ? currentBestRobot.name : "(none)";
+        GUILayout.Label($"Best Performer: {bestName}");
         
-        if (performanceData.ContainsKey(currentBestRobot))
+        if (performanceData.TryGetValue(currentBestRobot, out RobotPerformance perf) && perf != null)
         {
-            RobotPerformance perf = performanceData[currentBestRobot];
             GUILayout.Label($"Success Rate: {perf.SuccessRate * 100f:F1}%");
             GUILayout.Label($"Avg Time: {perf.AverageTime:F2}s");
             GUILayout.Label($"Avg Energy: {perf.AverageEnergy:F2}");
