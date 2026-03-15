@@ -85,6 +85,11 @@ public class RobotAgent : Agent
     private float distanceToTarget;
     private float previousDistanceToTarget;
 
+    // smooth control tracking
+    private float prevBaseControl = 0f;
+    private float prevShoulderControl = 0f;
+    private float prevElbowControl = 0f;
+
     // physics data for mechanics analysis
     private PhysicsData currentPhysicsData;
     private DataCollector dataCollector;
@@ -196,7 +201,8 @@ public class RobotAgent : Agent
             DetachBox();
         }
 
-        float baseReward = 20f;
+        // Increased success reward to 60f to make it the ultimate priority
+        float baseReward = 60f;
 
         if (usePowerBudget)
         {
@@ -244,6 +250,11 @@ public class RobotAgent : Agent
     {
         attachCooldown = 0f; // reset lock
         
+        // reset smooth control trackers
+        prevBaseControl = 0f;
+        prevShoulderControl = 0f;
+        prevElbowControl = 0f;
+
         // curriculum phase detection
         if (CompletedEpisodes >= curriculumEpisodeThreshold && !curriculumActive)
         {
@@ -314,16 +325,19 @@ public class RobotAgent : Agent
         // distance data
         float distanceToBox = Vector3.Distance(magnet.position, boxPos);
         sensor.AddObservation(distanceToBox);
-        distanceToTarget = Vector3.Distance(boxPos, targetPosition);
+        
+        Vector3 boxPosXZ = new Vector3(boxPos.x, 0, boxPos.z);
+        Vector3 targetPosXZ = new Vector3(targetPosition.x, 0, targetPosition.z);
+        distanceToTarget = Vector3.Distance(boxPosXZ, targetPosXZ);
         sensor.AddObservation(distanceToTarget);
         // use local floor height relative to this training area
         float localFloorY = floor != null ? floor.position.y : transform.position.y;
         sensor.AddObservation(magnet.position.y - localFloorY);
 
-        // joint configuration: actual joint angles, not drive targets
-        float baseAngle = GetJointAngle(baseRotation);
-        float shoulderAngle = GetJointAngle(shoulderJoint);
-        float elbowAngle = GetJointAngle(elbowJoint);
+        // joint configuration: actual joint angles, normalized so FreeMotion joints don't spin to infinity
+        float baseAngle = GetNormalizedJointAngle(baseRotation);
+        float shoulderAngle = GetNormalizedJointAngle(shoulderJoint);
+        float elbowAngle = GetNormalizedJointAngle(elbowJoint);
         sensor.AddObservation(baseAngle);
         sensor.AddObservation(shoulderAngle);
         sensor.AddObservation(elbowAngle);
@@ -358,12 +372,6 @@ public class RobotAgent : Agent
         float shoulderControl = Mathf.Clamp(actions.ContinuousActions[1], -1f, 1f);
         float elbowControl = Mathf.Clamp(actions.ContinuousActions[2], -1f, 1f);
 
-        // Debug: Log actions every 100 frames
-        if (Time.frameCount % 100 == 0)
-        {
-            Debug.Log($"<color=green>Actions: Base={baseControl:F2}, Shoulder={shoulderControl:F2}, Elbow={elbowControl:F2}</color>");
-        }
-
         ApplyJointTorque(baseRotation, baseControl);
         ApplyJointTorque(shoulderJoint, shoulderControl);
         ApplyJointTorque(elbowJoint, elbowControl);
@@ -391,6 +399,20 @@ public class RobotAgent : Agent
         {
             CollectPhysicsSnapshot(baseControl, shoulderControl, elbowControl, energyThisStep);
         }
+
+        // action jitter penalty (elegance/fluidity)
+        float actionJitter = Mathf.Abs(baseControl - prevBaseControl) + 
+                             Mathf.Abs(shoulderControl - prevShoulderControl) + 
+                             Mathf.Abs(elbowControl - prevElbowControl);
+        
+        // heavily penalize rapid oscillating inputs (jittering)
+        if (actionJitter > 0.5f) {
+            AddReward(-0.002f * actionJitter * rewardMultiplier);
+        }
+
+        prevBaseControl = baseControl;
+        prevShoulderControl = shoulderControl;
+        prevElbowControl = elbowControl;
 
         CalculateRewards(energyThisStep);
         CheckEpisodeEnd();
@@ -479,9 +501,9 @@ public class RobotAgent : Agent
         {
             timestamp = Time.time - episodeStartTime,
 
-            baseAngle = GetJointAngle(baseRotation),
-            shoulderAngle = GetJointAngle(shoulderJoint),
-            elbowAngle = GetJointAngle(elbowJoint),
+            baseAngle = GetNormalizedJointAngle(baseRotation),
+            shoulderAngle = GetNormalizedJointAngle(shoulderJoint),
+            elbowAngle = GetNormalizedJointAngle(elbowJoint),
 
             baseVelocity = baseVelocity,
             shoulderVelocity = shoulderVelocity,
@@ -531,7 +553,11 @@ public class RobotAgent : Agent
         // Re-calculate distanceToTarget every frame for smooth physics-based reward
         // IMPORTANT: Use transform.position because Rigidbody.position can freeze when isKinematic and parented to ArticulationBody
         Vector3 boxPos = movableBox != null ? movableBox.transform.position : boxStartPosition;
-        distanceToTarget = Vector3.Distance(boxPos, targetPosition);
+        
+        // Calculate strict horizontal (XZ) distance to effectively guide it towards the drop zone center
+        Vector3 boxPosXZ = new Vector3(boxPos.x, 0, boxPos.z);
+        Vector3 targetPosXZ = new Vector3(targetPosition.x, 0, targetPosition.z);
+        distanceToTarget = Vector3.Distance(boxPosXZ, targetPosXZ);
 
         // distance improvement reward
         float distanceImprovement = previousDistanceToTarget - distanceToTarget;
@@ -569,7 +595,7 @@ public class RobotAgent : Agent
 
         // energy penalty - use INCREMENTAL energy, not cumulative
         AddReward(-0.005f * energyThisStep * rewardMultiplier);
-        AddReward(-0.0001f * rewardMultiplier);  // time penalty
+        AddReward(-0.001f * rewardMultiplier);  // time penalty: Increased to heavily discourage stalling
 
         // penalize excessive/jerky movement while holding
         if (isBoxAttached)
@@ -589,13 +615,11 @@ public class RobotAgent : Agent
             {
                 // Penalty: the elbow has drooped below the magnet, pushing up awkwardly
                 // postureDiff is negative here, so we multiply by a factor to make it a penalty
-                AddReward(postureDiff * 0.05f * rewardMultiplier); 
+                AddReward(postureDiff * 0.037f * rewardMultiplier);
             }
-            else if (isBoxAttached)
-            {
-                // Small continuous reward for maintaining proper crane-like posture while carrying the box
-                AddReward(0.005f * rewardMultiplier);
-            }
+            // EXPLOIT FIX: Removed the positive continuous reward for good posture. 
+            // In RL, you should only punish bad form, not infinitely reward "not doing the bad form".
+            // Otherwise the agent stalls to harvest points!
         }
     }
 
@@ -612,16 +636,20 @@ public class RobotAgent : Agent
         {
             // Continuously read the exact visual hierarchy position, not the cached Rigidbody.position
             // This prevents the distance check from freezing when the box is parented to an ArticulationBody hierarchy!
-            float realDistance = Vector3.Distance(movableBox.transform.position, targetPosition);
-            distanceToTarget = realDistance; 
+            Vector3 boxPos = movableBox.transform.position;
+            Vector3 boxPosXZ = new Vector3(boxPos.x, 0, boxPos.z);
+            Vector3 targetPosXZ = new Vector3(targetPosition.x, 0, targetPosition.z);
+            
+            float realHorizontalDistance = Vector3.Distance(boxPosXZ, targetPosXZ);
+            distanceToTarget = realHorizontalDistance;
 
             // Auto-detach when box (carried) reaches zone B — let it land into the trigger
-            // use a more forgiving 0.9m threshold since targetPosition includes vertical padding
-            if (realDistance < 0.9f)
+            // extremely tight 0.1m threshold to force dead-center placement before dropping
+            if (realHorizontalDistance < 0.1f)
             {
-                Debug.Log($"<color=yellow>[AUTO-DETACH] Box at distance {realDistance:F3}m, releasing...</color>");
+                Debug.Log($"<color=yellow>[AUTO-DETACH] Box at XZ distance {realHorizontalDistance:F3}m, releasing...</color>");
                 DetachBox();
-                AddReward(2f * rewardMultiplier);  // reward for placing near target
+                AddReward(3f * rewardMultiplier);  // Boosted intermediate reward for successful delivery
             }
         }
     }
@@ -745,21 +773,29 @@ public class RobotAgent : Agent
         float desiredTarget = drive.target + control * movementSpeed * Time.fixedDeltaTime;
         drive.target = Mathf.Lerp(drive.target, desiredTarget, actionSmoothing);
 
-        // joint limit penalty — use ACTUAL joint angle, not drive target
-        float actualAngle = GetJointAngle(joint);
-        if (actualAngle <= drive.lowerLimit + 1f || actualAngle >= drive.upperLimit - 1f)
-        {
-            AddReward(jointLimitPenalty);
-        }
+        bool isFreeMotion = joint.twistLock == ArticulationDofLock.FreeMotion || 
+                            joint.swingYLock == ArticulationDofLock.FreeMotion || 
+                            joint.swingZLock == ArticulationDofLock.FreeMotion;
 
-        drive.target = Mathf.Clamp(drive.target, drive.lowerLimit, drive.upperLimit);
+        if (!isFreeMotion)
+        {
+            // joint limit penalty — use ACTUAL joint angle, not drive target
+            float actualAngle = GetNormalizedJointAngle(joint);
+            if (actualAngle <= drive.lowerLimit + 1f || actualAngle >= drive.upperLimit - 1f)
+            {
+                AddReward(jointLimitPenalty);
+            }
+
+            drive.target = Mathf.Clamp(drive.target, drive.lowerLimit, drive.upperLimit);
+        }
+        
         joint.xDrive = drive;
     }
 
     private void ConfigureJointDrives()
     {
         Debug.Log("<color=magenta>=== RobotArm Joint Configuration ===</color>");
-        
+
         // Diagnostic: Check if joints are assigned
         Debug.Log($"rootBody (Base): {(rootBody != null ? "OK" : "NULL")}");
         Debug.Log($"baseRotation (Body): {(baseRotation != null ? "OK" : "NULL")}");
@@ -787,12 +823,12 @@ public class RobotAgent : Agent
         }
 
         // Apply scaled drive settings to each joint
-        ConfigureSingleJointDrive(baseRotation, "Base");
+        ConfigureSingleJointDrive(baseRotation, "Base", true); // True to allow infinite continuous spinning
         ConfigureSingleJointDrive(shoulderJoint, "Shoulder");
         ConfigureSingleJointDrive(elbowJoint, "Elbow");
     }
 
-    private void ConfigureSingleJointDrive(ArticulationBody joint, string jointName)
+    private void ConfigureSingleJointDrive(ArticulationBody joint, string jointName, bool allowFreeRotation = false)
     {
         if (joint == null)
         {
@@ -811,18 +847,34 @@ public class RobotAgent : Agent
         }
 
         var drive = joint.xDrive;
-        
+
         // Ensure drive type is set to Target (position-based control)
         drive.driveType = ArticulationDriveType.Target;
-        
-        // Fix joint limits if they're zero (common mistake)
-        if (drive.lowerLimit == 0 && drive.upperLimit == 0)
+
+        if (allowFreeRotation)
         {
-            Debug.LogWarning($"<color=orange>{jointName} has [0,0] limits - setting default [-180, 180]</color>");
-            drive.lowerLimit = -180f;
-            drive.upperLimit = 180f;
+            joint.twistLock = ArticulationDofLock.FreeMotion;
+            joint.swingYLock = ArticulationDofLock.FreeMotion;
+            joint.swingZLock = ArticulationDofLock.FreeMotion;
+            Debug.LogWarning($"<color=cyan>{jointName} set to FreeMotion for infinite optimal rotation.</color>");
         }
-        
+        else
+        {
+            // Fix joint limits if they're zero (common mistake) or restricted to 0-360
+            if (drive.lowerLimit == 0 && drive.upperLimit == 0)
+            {
+                Debug.LogWarning($"<color=orange>{jointName} has [0,0] limits - setting default [-180, 180]</color>");
+                drive.lowerLimit = -180f;
+                drive.upperLimit = 180f;
+            }
+            else if (Mathf.Approximately(drive.lowerLimit, 0f) && Mathf.Approximately(drive.upperLimit, 360f))
+            {
+                Debug.LogWarning($"<color=cyan>{jointName} has [0, 360] limits - re-centering to [-180, 180] for bidirectional optimal rotation</color>");
+                drive.lowerLimit = -180f;
+                drive.upperLimit = 180f;
+            }
+        }
+
         drive.stiffness = baseStiffness * armScaleFactor;
         drive.damping = baseDamping * armScaleFactor;
         drive.forceLimit = baseForceLimit * armScaleFactor;
@@ -838,6 +890,13 @@ public class RobotAgent : Agent
         // use actual joint position, NOT drive target — the target is what the motor
         // is trying to reach, but actual angle can differ due to inertia/load
         return joint.jointPosition[0] * Mathf.Rad2Deg;
+    }
+
+    private float GetNormalizedJointAngle(ArticulationBody joint)
+    {
+        // For joints with FreeMotion, the numerical angle can spin into infinity.
+        // This keeps it clamped cleanly between [-180, 180] functionally modding 360 smoothly.
+        return Mathf.DeltaAngle(0, GetJointAngle(joint));
     }
 
     /// Snaps a joint's drive target to its current physical angle.
@@ -895,10 +954,10 @@ public class RobotAgent : Agent
         float minRadius = Mathf.Max(1.5f, minDistance * 0.5f);  // use minDistance
         float maxRadius = Mathf.Min(workspaceRadius, maxReach);  // use maxReach
         float sharedRadius = Random.Range(minRadius, maxRadius);
-        
-        // generate start angle randomly
-        float startAngleDeg = Random.Range(0f, 360f);
-        
+
+        // generate start angle randomly (centered around 0 for optimal base rotation)
+        float startAngleDeg = Random.Range(-180f, 180f);
+
         // generate end angle that is at least 100 degrees away in BOTH directions
         // this means the end angle must be between 100 and 260 degrees away from start
         // (100 to 260 ensures at least 100 deg CW and at least 100 deg CCW)
@@ -1098,9 +1157,9 @@ public class RobotAgent : Agent
         GUILayout.Label($"Action Smoothing: {actionSmoothing:F2}");
         GUILayout.Label($"");
         GUILayout.Label($"Joint Angles:");
-        GUILayout.Label($"  Base: {GetJointAngle(baseRotation):F1}°");
-        GUILayout.Label($"  Shoulder: {GetJointAngle(shoulderJoint):F1}°");
-        GUILayout.Label($"  Elbow: {GetJointAngle(elbowJoint):F1}°");
+        GUILayout.Label($"  Base: {GetNormalizedJointAngle(baseRotation):F1}°");
+        GUILayout.Label($"  Shoulder: {GetNormalizedJointAngle(shoulderJoint):F1}°");
+        GUILayout.Label($"  Elbow: {GetNormalizedJointAngle(elbowJoint):F1}°");
         GUILayout.EndArea();
     }
 

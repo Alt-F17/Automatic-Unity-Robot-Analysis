@@ -352,7 +352,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24d747a3c65ed664d8d2fe2f5ec8b784, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trainingAreaPrefab: {fileID: 5864303913214128156, guid: 5dec8df69649a0842b8e978aaf0a8df9, type: 3}
+  trainingAreaPrefab: {fileID: 5864303913214128156, guid: 36e1791270c998541983f9b2fe98fba4, type: 3}
   numberOfAreas: 100
   spacing: 17
   areasPerRow: 10

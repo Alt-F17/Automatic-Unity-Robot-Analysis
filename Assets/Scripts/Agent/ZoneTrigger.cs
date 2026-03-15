@@ -21,7 +21,7 @@ public class ZoneTrigger : MonoBehaviour
         // Ensure a trigger collider sized to catch the box from above.
         BoxCollider col = GetComponent<BoxCollider>();
         col.isTrigger = true;
-        col.size   = new Vector3(1f, 4f, 1f);
+        col.size   = new Vector3(0.1f, 4f, 0.1f); // Microscopic precision (10cm footprint)
         col.center = new Vector3(0f, 2f, 0f);  // centered above zone surface
     }
 
@@ -32,8 +32,12 @@ public class ZoneTrigger : MonoBehaviour
         // Only respond to THIS area's own box
         if (other.attachedRigidbody == expectedBox)
         {
-            Debug.Log($"<color=green>[ZoneTrigger] Box entered Zone B!</color>");
-            onBoxLanded.Invoke();
+            float distance = Vector3.Distance(new Vector3(other.transform.position.x, 0, other.transform.position.z), new Vector3(transform.position.x, 0, transform.position.z));
+            if (distance < 0.15f)
+            {
+                Debug.Log($"<color=green>[ZoneTrigger] Box entered Zone B!</color>");
+                onBoxLanded.Invoke();
+            }
         }
     }
 
@@ -44,7 +48,12 @@ public class ZoneTrigger : MonoBehaviour
         // Keep invoking while inside, RobotAgent will ignore if already ending
         if (other.attachedRigidbody == expectedBox)
         {
-            onBoxLanded.Invoke();
+            // The box's center must be extremely close (0.1m) to the target center
+            float distance = Vector3.Distance(new Vector3(other.transform.position.x, 0, other.transform.position.z), new Vector3(transform.position.x, 0, transform.position.z));
+            if (distance < 0.15f)
+            {
+                onBoxLanded.Invoke();
+            }
         }
     }
 }
