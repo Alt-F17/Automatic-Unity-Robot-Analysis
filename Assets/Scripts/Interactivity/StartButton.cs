@@ -16,8 +16,3 @@ public class StartButton : MonoBehaviour
 
 }
 
-
-void onDrawGizmos(){
-    Gizmos.color = Color.green;
-    Gizmos.DrawRay(transform.position, transform.forward * 2);
-}
