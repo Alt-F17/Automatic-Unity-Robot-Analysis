@@ -54,3 +54,17 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     }
 
 }
+
+
+public class DragLimit : MonoBehaviour
+{
+    public float xMin, xMax,zMin, zMax;
+
+    private void Update()
+    {
+        Vector3 pos = transform.position;
+        pos.x = Mathf.Clamp(pos.x, xMin, xMax);
+        pos.z = Mathf.Clamp(pos.z, zMin, zMax);
+        transform.position = pos;
+    }
+}
