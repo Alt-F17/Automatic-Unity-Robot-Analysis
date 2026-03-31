@@ -48,10 +48,10 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
         Vector3 mousePos = Input.mousePosition;
     }
 
-    public void OnDrop(PointerEventData eventData)
-    {
-        Throw new System.NotImplementedException();
-    }
+    // public void OnDrop(PointerEventData eventData)
+    // {
+    //     Throw new System.NotImplementedException();
+    // }
 
 }
 

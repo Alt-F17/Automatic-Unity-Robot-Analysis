@@ -18,8 +18,3 @@ public class StartButton : MonoBehaviour
 
 // draw vectors for force visualization 
 
-
-void onDrawGizmos(){
-    Gizmos.color = Color.green;
-    Gizmos.DrawRay(transform.position, transform.forward * 2);
-}
