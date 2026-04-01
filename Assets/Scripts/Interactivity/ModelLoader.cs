@@ -1,32 +1,27 @@
 // be sure to install the sentis package from the package manager to use this script
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Unity.Sentis;
 using Unity.Sentis.Layers;
+using System.Runtime.CompilerServices;
 
-public class ModelInference : MonoBehaviour
+public class MLMManager : MonoBehaviour
 {
-    public NNModel model;
-    private Model runtimeModel;
-    private IWorker worker;
+    public ModelAsset onnxModel;
+    public IModel runtimeModel;
 
     void Start()
     {
-        runtimeModel = ModelLoader.Load(model);
-        worker = WorkerFactory.CreateWorker(BackendType.GPUCompute, runtimeModel);
+        DontDestroyOnLoad(gameObject);
+        if (onnxModel != null)
+        {
+            runtimeModel = ModelLoader.Load(onnxModel);
+            Debug.Log("Model loaded successfully in Awake.");
+        }
     }
-
-    void runInference(Tensor input)
+    public IModel GetModel()
     {
-        using TensorFloat inputTensor = new TensorFloat(input);
-        worker.Execute(inputTensor);
-        Tensor outputTensor = worker.PeekOutput();
-        outputTensor.MakeReadable();
-        // Process outputTensor as needed
-
+        return runtimeModel;
     }
 
-    private void onDisable()
-    {
-        worker.Dispose();
-    }
 }

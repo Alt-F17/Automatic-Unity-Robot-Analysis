@@ -17,8 +17,8 @@ public class RobotAgent : Agent
 
     [Header("Environment Objects")]
     [SerializeField] private Rigidbody movableBox;
-    [SerializeField] private Transform targetZoneA;            // starting zone
-    [SerializeField] private Transform targetZoneB;            // goal zone
+    [SerializeField] public Transform targetZoneA;            // starting zone
+    [SerializeField] public Transform targetZoneB;            // goal zone
     [SerializeField] private Transform floor;
 
     [Header("Magnet Settings")]
