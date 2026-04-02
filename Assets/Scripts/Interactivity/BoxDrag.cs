@@ -1,11 +1,8 @@
-using System.Numerics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
 
 [RequireComponent(typeof(BoxCollider))]
-
-ModelLoader myModelLoader = new ModelLoader();
 
 // Creates the box drag interactivity for the user 
 
@@ -13,54 +10,67 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
 {
     private Vector3 offset;
     private Camera mainCamera;
+    private CanvasGroup canvasGroup;
+    private float mZcoord;
+    private Vector3 worldOffset;
+    private Vector3 boxStartPosition;
+    private Vector3 targetInitialPosition;
 
-    public Agent targetZoneA;
-    public Agent targetZoneB;
+    public Transform targetZoneA;
+    public Transform targetZoneB;
+    public Agent robotAgent;
 
-    public Agent movableBox;
+    public Rigidbody movableBox;
+    public InferenceController inference;
+
     [SerializeField] private Canvas canvas;
 
-    private rectTransform rectTransform;
-
+    ModelLoader myModelLoader = new ModelLoader();
 
     private void Awake()
     {
-        rectTransform = GetComponent<RectTransform>();
         canvasGroup = GetComponent<CanvasGroup>();
         // position of square where the box starts
         boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
         targetInitialPosition = targetZoneB.position + Vector3.up * 0.5f;
+        robotAgent.enabled = false;
+        inference.enabled = false;
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
         mainCamera = Camera.main;
         canvasGroup.alpha = 0.6f;
-        canvasGroup.rayBlocksRaycasts = false;
+        canvasGroup.blocksRaycasts = false;
 
         mZcoord = mainCamera.WorldToScreenPoint(targetZoneB.transform.position).z;
-        mZOffset = targetZoneB.transform.position - mainCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, mZcoord));
+        worldOffset = targetZoneB.transform.position - GetMouseWorldPos();
     }
 
-
-    public void OnMouseDrag(PointerEventData eventData)
+    private Vector3 GetMouseWorldPos()
     {
-        rectTransform.anchoredPosition += eventData.delta / canvas.scaleFactor;
+        Vector3 mousePoint = Input.mousePosition;
+        mousePoint.z = mZcoord;
+        return mainCamera.ScreenToWorldPoint(mousePoint);
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        Vector3 mousePos = Input.mousePosition;
-        mousePos.z = mainCamera.WorldToScreenPoint(transform.position).z;
-        transform.position = mainCamera.ScreenToWorldPoint(mousePos) + offset;
         canvasGroup.alpha = 1f;
-        canvasGroup.rayBlocksRaycasts = true;
+        canvasGroup.blocksRaycasts = true;
+
+        // reset the episode when the box is dropped, whether in the target zone or not, to allow for a new attempt
+        robotAgent.enabled = true;
+        inference.enabled = true;
+        
+        robotAgent.SetTargetPosition(targetZoneB.position + Vector3.up * 0.5f);
+        robotAgent.EndEpisode();
     }
 
-    public void OnPointerDown(PointerEventData eventData)
+    public void OnDrag(PointerEventData eventData)
     {
-        Debug.Log("Pointer Down");
-        Vector3 mousePos = Input.mousePosition;
+        Vector3 newPos = GetMouseWorldPos() + worldOffset;
+        transform.position = newPos;
     }
 
     public void ResetBoxPosition()
