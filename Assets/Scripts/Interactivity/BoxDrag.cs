@@ -12,6 +12,7 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     private Camera mainCamera;
     private CanvasGroup canvasGroup;
     private float mZcoord;
+    private float distance;
     private Vector3 worldOffset;
     private Vector3 boxStartPosition;
     private Vector3 targetInitialPosition;
@@ -22,6 +23,8 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
 
     public Rigidbody movableBox;
     public InferenceController inference;
+    
+    private bool placementValid = false;
 
     [SerializeField] private Canvas canvas;
 
@@ -62,7 +65,13 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
         // reset the episode when the box is dropped, whether in the target zone or not, to allow for a new attempt
         robotAgent.enabled = true;
         inference.enabled = true;
-        
+
+        if(!placementValid)
+        {
+            Debug.Log("Invalid placement. Please place the box in the green target zone.");
+            return;
+        }
+
         robotAgent.SetTargetPosition(targetZoneB.position + Vector3.up * 0.5f);
         robotAgent.EndEpisode();
     }
@@ -79,11 +88,18 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
         myModelLoader.Destroy();
     }
 
-    // public void OnDrop(PointerEventData eventData)
-    // {
-    //     Throw new System.NotImplementedException();
-    // }
-
+    public void SetPlacementValid(bool isValid)
+    {
+        if (isValid)
+        {   
+            placementValid = isValid;
+            targetZoneB.GetComponent<Renderer>().material.color = Color.green;
+        }
+        else
+        {
+            targetZoneB.GetComponent<Renderer>().material.color = Color.red;
+        }
+    }
 }
 
 // Setting the limits that the user can drag the target zone for the box
@@ -91,24 +107,36 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
 public class DragLimit : MonoBehaviour
 {
     public float xMin, xMax,zMin, zMax;
+    public Transform targetZoneA;
+    public Transform targetZoneB;
+    public Agent robotAgent;
+    public float distance;
+    public Vector3 targetInitialPosition;
+
     public TextMeshProUGUI messageText;
+    public BoxDrag dragController;
+
+    public float minimumDistance = 50f;
 
     private void Update()
     {
-        Vector3 pos = transform.position;
+        Vector3 pos = targetZoneB.transform.position;
         pos.x = Mathf.Clamp(pos.x, xMin, xMax);
         pos.z = Mathf.Clamp(pos.z, zMin, zMax);
-        transform.position = pos;
     }
 
-    private void AllowedDistance()
+    private void CheckDistanceConstraint()
     {
-        distance = Vector3.Distance(boxStart.transform.position, boxEnd.transform.position);
-        if(distance < 50)
+        distance = Vector3.Distance(targetZoneA.transform.position, targetZoneB.transform.position);
+        if(distance < minimumDistance)
         {
             messageText.text = "End position of box is too close";
             targetZoneB.position = targetInitialPosition;
-            ResetBoxPosition();
+            dragController.SetPlacementValid(false);
+        } else {
+            messageText.text = "";
+            targetInitialPosition = targetZoneB.position;
+            dragController.SetPlacementValid(true);
         }
     }
 }
