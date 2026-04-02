@@ -16,10 +16,10 @@ public class RobotAgent : Agent
     [SerializeField] private Transform magnet;                 // end obj with magnet — Hand
 
     [Header("Environment Objects")]
-    [SerializeField] private Rigidbody movableBox;
-    [SerializeField] private Transform targetZoneA;            // starting zone
-    [SerializeField] private Transform targetZoneB;            // goal zone
-    [SerializeField] private Transform floor;
+    [SerializeField] public Rigidbody movableBox;
+    [SerializeField] public Transform targetZoneA;            // starting zone
+    [SerializeField] public Transform targetZoneB;            // goal zone
+    [SerializeField] public Transform floor;
 
     [Header("Magnet Settings")]
     [SerializeField] private float magneticRange = 0.5f;       // distance to auto-pickup

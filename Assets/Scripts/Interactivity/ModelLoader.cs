@@ -8,6 +8,7 @@ public class ModelInference : MonoBehaviour
     public NNModel model;
     private Model runtimeModel;
     private IWorker worker;
+    public Rigidbody movableBox;
 
     void Start()
     {
