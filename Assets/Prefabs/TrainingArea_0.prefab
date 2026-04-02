@@ -1445,7 +1445,7 @@ ArticulationBody:
   m_Enabled: 1
   serializedVersion: 5
   m_Mass: 2
-  m_ParentAnchorPosition: {x: 0, y: 1.1571432, z: 0}
+  m_ParentAnchorPosition: {x: 0, y: 1.1571423, z: 0}
   m_ParentAnchorRotation: {x: 0, y: 0, z: 0, w: 1}
   m_AnchorPosition: {x: 0, y: -1.1571432, z: 0}
   m_AnchorRotation: {x: 0, y: 0, z: 0, w: 1}
@@ -1607,7 +1607,7 @@ MonoBehaviour:
   minDistance: 2
   maxReach: 4
   workspaceRadius: 3.5
-  curriculumEpisodeThreshold: 500
+  curriculumEpisodeThreshold: 250
   jointLimitPenalty: -0.001
   actionSmoothing: 0.5
   collectDetailedPhysics: 1
@@ -1628,9 +1628,9 @@ MonoBehaviour:
   maxEpisodesToRecord: 1000
   autoExportOnInterval: 1
   exportInterval: 50
-  exportDetailedPhysics: 0
-  exportInverseKinematics: 0
-  exportStatisticalSummary: 0
+  exportDetailedPhysics: 1
+  exportInverseKinematics: 1
+  exportStatisticalSummary: 1
   baseJointRef: {fileID: 4117781523229693197}
   shoulderJointRef: {fileID: 8557681284115392236}
   elbowJointRef: {fileID: 6499519932178702134}

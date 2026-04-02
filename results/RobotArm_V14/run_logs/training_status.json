@@ -1,0 +1,65 @@
+{
+    "RobotArm": {
+        "checkpoints": [
+            {
+                "steps": 3249825,
+                "file_path": "results\\RobotArm_V14\\RobotArm\\RobotArm-3249825.onnx",
+                "reward": 46.847962737083435,
+                "creation_time": 1773425471.8050888,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V14\\RobotArm\\RobotArm-3249825.pt"
+                ]
+            },
+            {
+                "steps": 3299966,
+                "file_path": "results\\RobotArm_V14\\RobotArm\\RobotArm-3299966.onnx",
+                "reward": 43.500891271759485,
+                "creation_time": 1773425508.9968343,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V14\\RobotArm\\RobotArm-3299966.pt"
+                ]
+            },
+            {
+                "steps": 3349960,
+                "file_path": "results\\RobotArm_V14\\RobotArm\\RobotArm-3349960.onnx",
+                "reward": 44.64936943848928,
+                "creation_time": 1773425550.6821709,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V14\\RobotArm\\RobotArm-3349960.pt"
+                ]
+            },
+            {
+                "steps": 3399866,
+                "file_path": "results\\RobotArm_V14\\RobotArm\\RobotArm-3399866.onnx",
+                "reward": 44.776612019852585,
+                "creation_time": 1773425595.6011608,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V14\\RobotArm\\RobotArm-3399866.pt"
+                ]
+            },
+            {
+                "steps": 3433107,
+                "file_path": "results\\RobotArm_V14\\RobotArm\\RobotArm-3433107.onnx",
+                "reward": 46.94528732299805,
+                "creation_time": 1773425657.9125266,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_V14\\RobotArm\\RobotArm-3433107.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 3433107,
+            "file_path": "results\\RobotArm_V14\\RobotArm.onnx",
+            "reward": 46.94528732299805,
+            "creation_time": 1773425657.9125266,
+            "auxillary_file_paths": [
+                "results\\RobotArm_V14\\RobotArm\\RobotArm-3433107.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.0.0",
+        "torch_version": "1.13.1+cpu"
+    }
+}

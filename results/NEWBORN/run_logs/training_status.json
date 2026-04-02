@@ -1,0 +1,65 @@
+{
+    "RobotArm": {
+        "checkpoints": [
+            {
+                "steps": 2899812,
+                "file_path": "results\\NEWBORN\\RobotArm\\RobotArm-2899812.onnx",
+                "reward": -8.802938604354859,
+                "creation_time": 1773544728.78985,
+                "auxillary_file_paths": [
+                    "results\\NEWBORN\\RobotArm\\RobotArm-2899812.pt"
+                ]
+            },
+            {
+                "steps": 2949813,
+                "file_path": "results\\NEWBORN\\RobotArm\\RobotArm-2949813.onnx",
+                "reward": -8.783351764678955,
+                "creation_time": 1773544922.013542,
+                "auxillary_file_paths": [
+                    "results\\NEWBORN\\RobotArm\\RobotArm-2949813.pt"
+                ]
+            },
+            {
+                "steps": 2988637,
+                "file_path": "results\\NEWBORN\\RobotArm\\RobotArm-2988637.onnx",
+                "reward": -8.751954451203346,
+                "creation_time": 1773545140.9824648,
+                "auxillary_file_paths": [
+                    "results\\NEWBORN\\RobotArm\\RobotArm-2988637.pt"
+                ]
+            },
+            {
+                "steps": 2999901,
+                "file_path": "results\\NEWBORN\\RobotArm\\RobotArm-2999901.onnx",
+                "reward": null,
+                "creation_time": 1773549102.742882,
+                "auxillary_file_paths": [
+                    "results\\NEWBORN\\RobotArm\\RobotArm-2999901.pt"
+                ]
+            },
+            {
+                "steps": 3014237,
+                "file_path": "results\\NEWBORN\\RobotArm\\RobotArm-3014237.onnx",
+                "reward": null,
+                "creation_time": 1773549116.6783557,
+                "auxillary_file_paths": [
+                    "results\\NEWBORN\\RobotArm\\RobotArm-3014237.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 3014237,
+            "file_path": "results\\NEWBORN\\RobotArm.onnx",
+            "reward": null,
+            "creation_time": 1773549116.6783557,
+            "auxillary_file_paths": [
+                "results\\NEWBORN\\RobotArm\\RobotArm-3014237.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.0.0",
+        "torch_version": "1.13.1+cpu"
+    }
+}

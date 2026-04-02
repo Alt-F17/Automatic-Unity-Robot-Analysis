@@ -1,0 +1,65 @@
+{
+    "RobotArm": {
+        "checkpoints": [
+            {
+                "steps": 15949991,
+                "file_path": "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-15949991.onnx",
+                "reward": 82.84264730555671,
+                "creation_time": 1773514279.6193082,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-15949991.pt"
+                ]
+            },
+            {
+                "steps": 15999941,
+                "file_path": "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-15999941.onnx",
+                "reward": 85.45430526733398,
+                "creation_time": 1773514322.5387506,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-15999941.pt"
+                ]
+            },
+            {
+                "steps": 16049877,
+                "file_path": "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16049877.onnx",
+                "reward": 85.41727072693581,
+                "creation_time": 1773514361.5504005,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16049877.pt"
+                ]
+            },
+            {
+                "steps": 16099891,
+                "file_path": "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16099891.onnx",
+                "reward": 85.17026662826538,
+                "creation_time": 1773514407.2270985,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16099891.pt"
+                ]
+            },
+            {
+                "steps": 16122291,
+                "file_path": "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16122291.onnx",
+                "reward": null,
+                "creation_time": 1773514428.6389337,
+                "auxillary_file_paths": [
+                    "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16122291.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 16122291,
+            "file_path": "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm.onnx",
+            "reward": null,
+            "creation_time": 1773514428.6389337,
+            "auxillary_file_paths": [
+                "results\\RobotArm_Finetuned_PhysicsV1\\RobotArm\\RobotArm-16122291.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.0.0",
+        "torch_version": "1.13.1+cpu"
+    }
+}
