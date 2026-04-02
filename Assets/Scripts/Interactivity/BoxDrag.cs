@@ -5,6 +5,8 @@ using TMPro;
 
 [RequireComponent(typeof(BoxCollider))]
 
+ModelLoader myModelLoader = new ModelLoader();
+
 // Creates the box drag interactivity for the user 
 
 public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
@@ -64,6 +66,7 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     public void ResetBoxPosition()
     {
         movableBox.position = boxStartPosition;
+        myModelLoader.Destroy();
     }
 
     // public void OnDrop(PointerEventData eventData)

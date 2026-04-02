@@ -1,10 +1,14 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Numerics;
 using System.Threading.Tasks.Dataflow;
 using UnityEngine;
 
+
+
 public class ForceVisualizer : MonoBehaviour
 {
+    public Vector3 angularVelocity = 0f;
     void Start()
     {
         robot = GetComponent<RigidBody>();
