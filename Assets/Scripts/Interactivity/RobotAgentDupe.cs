@@ -6,7 +6,7 @@ using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
 
-public class RobotAgent : Agent
+public class RobotAgentDupe : Agent
 {
     [Header("Robot Joint Components")]
     [SerializeField] private ArticulationBody rootBody;        // root ArticulationBody (Fixed) — Base
