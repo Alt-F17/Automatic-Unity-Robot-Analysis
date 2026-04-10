@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ONNX Viz - tmp_jsonizer_labrat.onnx</title>
+<style>
+:root {
+  --gold: #f0e68c;
+  --red:  #c0392b;
+  --bg:   #0a0a0a;
+  --fg:   #ddd;
+  --fg2:  #888;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+}
+header {
+  padding: 18px 28px 12px;
+  border-bottom: 1px solid #1a1a1a;
+}
+header h1 {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--gold);
+  text-transform: uppercase;
+  font-weight: normal;
+}
+header p {
+  font-size: 9px;
+  color: #555;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+#stats {
+  display: flex;
+  gap: 18px;
+  padding: 10px 28px;
+  border-bottom: 1px solid #111;
+  flex-wrap: wrap;
+}
+.stat { font-size: 9px; color: #555; letter-spacing: 1px; }
+.stat span { color: var(--gold); }
+
+#graph-meta {
+  display: flex;
+  gap: 18px;
+  padding: 8px 28px 10px;
+  border-bottom: 1px solid #111;
+  flex-wrap: wrap;
+}
+.meta-item { font-size: 8px; color: #555; letter-spacing: 1px; }
+.meta-item span { color: #b7b17a; }
+
+#io-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 12px 28px;
+  border-bottom: 1px solid #111;
+}
+.io-col {
+  border: 1px solid #171717;
+  background: #0b0b0b;
+  padding: 10px 12px;
+  min-height: 72px;
+}
+.io-col h2 {
+  font-size: 8px;
+  color: #666;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+  font-weight: normal;
+}
+.io-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 8px;
+  color: #888;
+  line-height: 1.5;
+}
+.io-name { color: #b8b8b8; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.io-meta { color: #666; white-space: nowrap; }
+.io-more, .io-empty {
+  margin-top: 4px;
+  font-size: 8px;
+  color: #555;
+}
+
+#canvas-wrap {
+  position: relative;
+  overflow: auto;
+}
+canvas {
+  display: block;
+  cursor: crosshair;
+}
+
+/* Tooltip */
+#tooltip {
+  position: fixed;
+  display: none;
+  pointer-events: none;
+  background: #0c0c0c;
+  border: 1px solid #1e1e1e;
+  padding: 0;
+  min-width: 280px;
+  max-width: 390px;
+  z-index: 100;
+}
+#tooltip::before {
+  content: '';
+  position: absolute;
+  top:0; left:0; width:12px; height:12px;
+  border-top: 2px solid var(--gold);
+  border-left: 2px solid var(--gold);
+}
+#tooltip::after {
+  content: '';
+  position: absolute;
+  bottom:0; right:0; width:12px; height:12px;
+  border-bottom: 2px solid #333;
+  border-right: 2px solid #333;
+}
+#tt-inner {
+  padding: 14px 16px;
+}
+#tt-op {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+#tt-body {
+  font-size: 9px;
+  color: #888;
+  line-height: 1.75;
+}
+#tt-body strong { color: #bbb; font-weight: normal; }
+#tt-hist {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 28px;
+}
+.hist-bar {
+  flex: 1;
+  background: var(--gold);
+  opacity: 0.5;
+  min-width: 3px;
+}
+
+/* legend */
+#legend {
+  display: flex;
+  gap: 20px;
+  padding: 8px 28px;
+  border-top: 1px solid #111;
+  flex-wrap: wrap;
+}
+.leg { font-size: 8px; color: #555; display: flex; align-items: center; gap: 6px; letter-spacing: 1px; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+@media (max-width: 920px) {
+  #io-panels {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>tmp_jsonizer_labrat.onnx</h1>
+  <p>pytorch 1.13.1 &nbsp;·&nbsp; graph torch_jit &nbsp;·&nbsp; ONNX opset 9 &nbsp;·&nbsp; IR v4</p>
+</header>
+
+<div id="stats">
+  <div class="stat">PARAMS <span>140,614</span></div>
+  <div class="stat">Mul <span>5</span></div> <div class="stat">Gemm <span>4</span></div> <div class="stat">Identity <span>4</span></div> <div class="stat">Clip <span>3</span></div> <div class="stat">Constant <span>3</span></div> <div class="stat">Div <span>3</span></div> <div class="stat">Sigmoid <span>3</span></div> <div class="stat">Add <span>2</span></div> <div class="stat">Concat <span>1</span></div> <div class="stat">Exp <span>1</span></div> <div class="stat">OTHER OPS <span>2</span></div>
+  <div class="stat">INPUTS <span>1</span></div>
+  <div class="stat">OUTPUTS <span>5</span></div>
+</div>
+
+<div id="graph-meta">
+  <div class="meta-item">NODES <span>31</span></div>
+  <div class="meta-item">EDGES <span>32</span></div>
+  <div class="meta-item">DEPTH <span>10</span></div>
+  <div class="meta-item">STAGES <span>10</span></div>
+  <div class="meta-item">TENSORS <span>19</span></div>
+  <div class="meta-item">INITIALIZERS <span>13</span></div>
+  <div class="meta-item">MAX FANIN <span>2</span></div>
+  <div class="meta-item">MAX FANOUT <span>4</span></div>
+</div>
+
+<div id="io-panels">
+  <div class="io-col">
+    <h2>network inputs</h2>
+    <div class="io-line"><span class="io-name">obs_0</span><span class="io-meta">FLOAT [batchx31]</span></div>
+  </div>
+  <div class="io-col">
+    <h2>network outputs</h2>
+    <div class="io-line"><span class="io-name">version_number</span><span class="io-meta">FLOAT [1]</span></div><div class="io-line"><span class="io-name">memory_size</span><span class="io-meta">FLOAT [1]</span></div><div class="io-line"><span class="io-name">continuous_actions</span><span class="io-meta">FLOAT [batchx3]</span></div><div class="io-line"><span class="io-name">continuous_action_output_shape</span><span class="io-meta">FLOAT [1]</span></div><div class="io-line"><span class="io-name">deterministic_continuous_actions</span><span class="io-meta">FLOAT [batchx3]</span></div>
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+</div>
+
+<div id="legend">
+  <div class="leg"><div class="leg-dot" style="background:#f0e68c;opacity:.9"></div>data node</div>
+  <div class="leg"><div class="leg-dot" style="background:#f0e68c;opacity:.35;border:1px solid #f0e68c"></div>weight / const</div>
+  <div class="leg"><div class="leg-dot" style="background:#c0392b;opacity:.9"></div>output node</div>
+  <div class="leg"><div class="leg-dot" style="background:#3a3a00;border:1px solid #f0e68c"></div>input node</div>
+</div>
+
+<div id="tooltip">
+  <div id="tt-inner">
+    <div id="tt-op"></div>
+    <div id="tt-body"></div>
+    <div id="tt-hist"></div>
+  </div>
+</div>
+
+<script>
+const MODEL = {"meta":{"filename":"tmp_jsonizer_labrat.onnx","graph_name":"torch_jit","ir_version":4,"opset":[9],"producer":"pytorch 1.13.1","total_params":140614,"op_counts":{"Identity":4,"Sub":1,"Div":3,"Clip":3,"Concat":1,"Gemm":4,"Sigmoid":3,"Mul":5,"Constant":3,"Add":2,"Exp":1,"RandomNormalLike":1},"node_count":31,"edge_count":32,"initializer_count":13,"tensor_count":19,"max_fanin":2,"max_fanout":4},"inputs":[{"name":"obs_0","shape":["batch",31],"dtype":"FLOAT"}],"outputs":[{"name":"version_number","shape":[1],"dtype":"FLOAT"},{"name":"memory_size","shape":[1],"dtype":"FLOAT"},{"name":"continuous_actions","shape":["batch",3],"dtype":"FLOAT"},{"name":"continuous_action_output_shape","shape":[1],"dtype":"FLOAT"},{"name":"deterministic_continuous_actions","shape":["batch",3],"dtype":"FLOAT"}],"nodes":[{"id":0,"op":"Identity","domain":"","name":"Identity_0","inputs":["version_number.1"],"outputs":["continuous_act_size_vector"],"attrs":{},"weight_names":["version_number.1"],"metrics":{"fanin":0,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":1,"weight_params":1,"depth_hint":0,"stage_hint":0,"branch_count":1,"branch_ids":[3]},"io":{"inputs":[{"name":"version_number.1","shape":[1],"dtype":"FLOAT"}],"outputs":[{"name":"continuous_act_size_vector","shape":["?"],"dtype":"?"}]}},{"id":1,"op":"Sub","domain":"","name":"/network_body/observation_encoder/processors.0/normalizer/Sub","inputs":["obs_0","network_body.observation_encoder.processors.0.normalizer.running_mean"],"outputs":["/network_body/observation_encoder/processors.0/normalizer/Sub_output_0"],"attrs":{},"weight_names":["network_body.observation_encoder.processors.0.normalizer.running_mean"],"metrics":{"fanin":0,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":1,"weight_params":31,"depth_hint":0,"stage_hint":0,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"obs_0","shape":["batch",31],"dtype":"FLOAT"},{"name":"network_body.observation_encoder.processors.0.normalizer.running_mean","shape":[31],"dtype":"FLOAT"}],"outputs":[{"name":"/network_body/observation_encoder/processors.0/normalizer/Sub_output_0","shape":["?"],"dtype":"?"}]}},{"id":2,"op":"Div","domain":"","name":"/network_body/observation_encoder/processors.0/normalizer/Div","inputs":["/network_body/observation_encoder/processors.0/normalizer/Sub_output_0","onnx::Div_56"],"outputs":["/network_body/observation_encoder/processors.0/normalizer/Div_output_0"],"attrs":{},"weight_names":["onnx::Div_56"],"metrics":{"fanin":1,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":1,"weight_params":31,"depth_hint":0,"stage_hint":0,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/observation_encoder/processors.0/normalizer/Sub_output_0","shape":["?"],"dtype":"?"},{"name":"onnx::Div_56","shape":[31],"dtype":"FLOAT"}],"outputs":[{"name":"/network_body/observation_encoder/processors.0/normalizer/Div_output_0","shape":["?"],"dtype":"?"}]}},{"id":3,"op":"Clip","domain":"","name":"/network_body/observation_encoder/processors.0/normalizer/Clip","inputs":["/network_body/observation_encoder/processors.0/normalizer/Div_output_0"],"outputs":["/network_body/observation_encoder/processors.0/normalizer/Clip_output_0"],"attrs":{"max":5.0,"min":-5.0},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":1,"stage_hint":1,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/observation_encoder/processors.0/normalizer/Div_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/observation_encoder/processors.0/normalizer/Clip_output_0","shape":["?"],"dtype":"?"}]}},{"id":4,"op":"Concat","domain":"","name":"/network_body/observation_encoder/Concat","inputs":["/network_body/observation_encoder/processors.0/normalizer/Clip_output_0"],"outputs":["/network_body/observation_encoder/Concat_output_0"],"attrs":{"axis":1},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":1,"stage_hint":1,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/observation_encoder/processors.0/normalizer/Clip_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/observation_encoder/Concat_output_0","shape":["?"],"dtype":"?"}]}},{"id":5,"op":"Gemm","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm","inputs":["/network_body/observation_encoder/Concat_output_0","network_body._body_endoder.seq_layers.0.weight","network_body._body_endoder.seq_layers.0.bias"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0"],"attrs":{"alpha":1.0,"beta":1.0,"transB":1},"weight_names":["network_body._body_endoder.seq_layers.0.weight","network_body._body_endoder.seq_layers.0.bias"],"metrics":{"fanin":1,"fanout":2,"input_count":3,"output_count":1,"weight_tensors":2,"weight_params":8192,"depth_hint":2,"stage_hint":2,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/observation_encoder/Concat_output_0","shape":["?"],"dtype":"?"},{"name":"network_body._body_endoder.seq_layers.0.weight","shape":[256,31],"dtype":"FLOAT"},{"name":"network_body._body_endoder.seq_layers.0.bias","shape":[256],"dtype":"FLOAT"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0","shape":["?"],"dtype":"?"}]}},{"id":6,"op":"Sigmoid","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.1/Sigmoid","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.1/Sigmoid_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":2,"stage_hint":2,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.1/Sigmoid_output_0","shape":["?"],"dtype":"?"}]}},{"id":7,"op":"Mul","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.1/Mul","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0","/network_body/_body_endoder/seq_layers/seq_layers.1/Sigmoid_output_0"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.1/Mul_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":3,"stage_hint":3,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0","shape":["?"],"dtype":"?"},{"name":"/network_body/_body_endoder/seq_layers/seq_layers.1/Sigmoid_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.1/Mul_output_0","shape":["?"],"dtype":"?"}]}},{"id":8,"op":"Gemm","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.1/Mul_output_0","network_body._body_endoder.seq_layers.2.weight","network_body._body_endoder.seq_layers.2.bias"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0"],"attrs":{"alpha":1.0,"beta":1.0,"transB":1},"weight_names":["network_body._body_endoder.seq_layers.2.weight","network_body._body_endoder.seq_layers.2.bias"],"metrics":{"fanin":1,"fanout":2,"input_count":3,"output_count":1,"weight_tensors":2,"weight_params":65792,"depth_hint":3,"stage_hint":3,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.1/Mul_output_0","shape":["?"],"dtype":"?"},{"name":"network_body._body_endoder.seq_layers.2.weight","shape":[256,256],"dtype":"FLOAT"},{"name":"network_body._body_endoder.seq_layers.2.bias","shape":[256],"dtype":"FLOAT"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0","shape":["?"],"dtype":"?"}]}},{"id":9,"op":"Sigmoid","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.3/Sigmoid","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.3/Sigmoid_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":4,"stage_hint":4,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.3/Sigmoid_output_0","shape":["?"],"dtype":"?"}]}},{"id":10,"op":"Mul","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.3/Mul","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0","/network_body/_body_endoder/seq_layers/seq_layers.3/Sigmoid_output_0"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.3/Mul_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":4,"stage_hint":4,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0","shape":["?"],"dtype":"?"},{"name":"/network_body/_body_endoder/seq_layers/seq_layers.3/Sigmoid_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.3/Mul_output_0","shape":["?"],"dtype":"?"}]}},{"id":11,"op":"Gemm","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.3/Mul_output_0","network_body._body_endoder.seq_layers.4.weight","network_body._body_endoder.seq_layers.4.bias"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0"],"attrs":{"alpha":1.0,"beta":1.0,"transB":1},"weight_names":["network_body._body_endoder.seq_layers.4.weight","network_body._body_endoder.seq_layers.4.bias"],"metrics":{"fanin":1,"fanout":2,"input_count":3,"output_count":1,"weight_tensors":2,"weight_params":65792,"depth_hint":4,"stage_hint":4,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.3/Mul_output_0","shape":["?"],"dtype":"?"},{"name":"network_body._body_endoder.seq_layers.4.weight","shape":[256,256],"dtype":"FLOAT"},{"name":"network_body._body_endoder.seq_layers.4.bias","shape":[256],"dtype":"FLOAT"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0","shape":["?"],"dtype":"?"}]}},{"id":12,"op":"Sigmoid","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.5/Sigmoid","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.5/Sigmoid_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":5,"stage_hint":5,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.5/Sigmoid_output_0","shape":["?"],"dtype":"?"}]}},{"id":13,"op":"Mul","domain":"","name":"/network_body/_body_endoder/seq_layers/seq_layers.5/Mul","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0","/network_body/_body_endoder/seq_layers/seq_layers.5/Sigmoid_output_0"],"outputs":["/network_body/_body_endoder/seq_layers/seq_layers.5/Mul_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":5,"stage_hint":5,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0","shape":["?"],"dtype":"?"},{"name":"/network_body/_body_endoder/seq_layers/seq_layers.5/Sigmoid_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.5/Mul_output_0","shape":["?"],"dtype":"?"}]}},{"id":14,"op":"Gemm","domain":"","name":"/_continuous_distribution/mu/Gemm","inputs":["/network_body/_body_endoder/seq_layers/seq_layers.5/Mul_output_0","action_model._continuous_distribution.mu.weight","action_model._continuous_distribution.mu.bias"],"outputs":["/_continuous_distribution/mu/Gemm_output_0"],"attrs":{"alpha":1.0,"beta":1.0,"transB":1},"weight_names":["action_model._continuous_distribution.mu.weight","action_model._continuous_distribution.mu.bias"],"metrics":{"fanin":1,"fanout":4,"input_count":3,"output_count":1,"weight_tensors":2,"weight_params":771,"depth_hint":6,"stage_hint":6,"branch_count":2,"branch_ids":[2,4]},"io":{"inputs":[{"name":"/network_body/_body_endoder/seq_layers/seq_layers.5/Mul_output_0","shape":["?"],"dtype":"?"},{"name":"action_model._continuous_distribution.mu.weight","shape":[3,256],"dtype":"FLOAT"},{"name":"action_model._continuous_distribution.mu.bias","shape":[3],"dtype":"FLOAT"}],"outputs":[{"name":"/_continuous_distribution/mu/Gemm_output_0","shape":["?"],"dtype":"?"}]}},{"id":15,"op":"Constant","domain":"","name":"/_continuous_distribution/Constant","inputs":[],"outputs":["/_continuous_distribution/Constant_output_0"],"attrs":{"value":{"dtype":"float32","shape":[],"params":1,"min":0.0,"max":0.0}},"weight_names":[],"metrics":{"fanin":0,"fanout":1,"input_count":0,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":5,"stage_hint":5,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[],"outputs":[{"name":"/_continuous_distribution/Constant_output_0","shape":["?"],"dtype":"?"}]}},{"id":16,"op":"Mul","domain":"","name":"/_continuous_distribution/Mul","inputs":["/_continuous_distribution/mu/Gemm_output_0","/_continuous_distribution/Constant_output_0"],"outputs":["/_continuous_distribution/Mul_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":6,"stage_hint":6,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/_continuous_distribution/mu/Gemm_output_0","shape":["?"],"dtype":"?"},{"name":"/_continuous_distribution/Constant_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/_continuous_distribution/Mul_output_0","shape":["?"],"dtype":"?"}]}},{"id":17,"op":"Add","domain":"","name":"/_continuous_distribution/Add","inputs":["/_continuous_distribution/Mul_output_0","action_model._continuous_distribution.log_sigma"],"outputs":["/_continuous_distribution/Add_output_0"],"attrs":{},"weight_names":["action_model._continuous_distribution.log_sigma"],"metrics":{"fanin":1,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":1,"weight_params":3,"depth_hint":7,"stage_hint":7,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/_continuous_distribution/Mul_output_0","shape":["?"],"dtype":"?"},{"name":"action_model._continuous_distribution.log_sigma","shape":[1,3],"dtype":"FLOAT"}],"outputs":[{"name":"/_continuous_distribution/Add_output_0","shape":["?"],"dtype":"?"}]}},{"id":18,"op":"Exp","domain":"","name":"/_continuous_distribution/Exp","inputs":["/_continuous_distribution/Add_output_0"],"outputs":["/_continuous_distribution/Exp_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":7,"stage_hint":7,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/_continuous_distribution/Add_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/_continuous_distribution/Exp_output_0","shape":["?"],"dtype":"?"}]}},{"id":19,"op":"RandomNormalLike","domain":"","name":"/RandomNormalLike","inputs":["/_continuous_distribution/mu/Gemm_output_0"],"outputs":["/RandomNormalLike_output_0"],"attrs":{"dtype":1},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":6,"stage_hint":6,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/_continuous_distribution/mu/Gemm_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/RandomNormalLike_output_0","shape":["?"],"dtype":"?"}]}},{"id":20,"op":"Mul","domain":"","name":"/Mul","inputs":["/RandomNormalLike_output_0","/_continuous_distribution/Exp_output_0"],"outputs":["/Mul_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":8,"stage_hint":8,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/RandomNormalLike_output_0","shape":["?"],"dtype":"?"},{"name":"/_continuous_distribution/Exp_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/Mul_output_0","shape":["?"],"dtype":"?"}]}},{"id":21,"op":"Add","domain":"","name":"/Add","inputs":["/_continuous_distribution/mu/Gemm_output_0","/Mul_output_0"],"outputs":["/Add_output_0"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":1,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":8,"stage_hint":8,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/_continuous_distribution/mu/Gemm_output_0","shape":["?"],"dtype":"?"},{"name":"/Mul_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/Add_output_0","shape":["?"],"dtype":"?"}]}},{"id":22,"op":"Clip","domain":"","name":"/Clip","inputs":["/Add_output_0"],"outputs":["/Clip_output_0"],"attrs":{"max":3.0,"min":-3.0},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":9,"stage_hint":9,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/Add_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/Clip_output_0","shape":["?"],"dtype":"?"}]}},{"id":23,"op":"Constant","domain":"","name":"/Constant","inputs":[],"outputs":["/Constant_output_0"],"attrs":{"value":{"dtype":"float32","shape":[],"params":1,"min":3.0,"max":3.0}},"weight_names":[],"metrics":{"fanin":0,"fanout":1,"input_count":0,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":8,"stage_hint":8,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[],"outputs":[{"name":"/Constant_output_0","shape":["?"],"dtype":"?"}]}},{"id":24,"op":"Div","domain":"","name":"/Div","inputs":["/Clip_output_0","/Constant_output_0"],"outputs":["continuous_actions"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":0,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":9,"stage_hint":9,"branch_count":1,"branch_ids":[2]},"io":{"inputs":[{"name":"/Clip_output_0","shape":["?"],"dtype":"?"},{"name":"/Constant_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"continuous_actions","shape":["batch",3],"dtype":"FLOAT"}]}},{"id":25,"op":"Clip","domain":"","name":"/Clip_1","inputs":["/_continuous_distribution/mu/Gemm_output_0"],"outputs":["/Clip_1_output_0"],"attrs":{"max":3.0,"min":-3.0},"weight_names":[],"metrics":{"fanin":1,"fanout":1,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":6,"stage_hint":6,"branch_count":1,"branch_ids":[4]},"io":{"inputs":[{"name":"/_continuous_distribution/mu/Gemm_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"/Clip_1_output_0","shape":["?"],"dtype":"?"}]}},{"id":26,"op":"Constant","domain":"","name":"/Constant_1","inputs":[],"outputs":["/Constant_1_output_0"],"attrs":{"value":{"dtype":"float32","shape":[],"params":1,"min":3.0,"max":3.0}},"weight_names":[],"metrics":{"fanin":0,"fanout":1,"input_count":0,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":6,"stage_hint":6,"branch_count":1,"branch_ids":[4]},"io":{"inputs":[],"outputs":[{"name":"/Constant_1_output_0","shape":["?"],"dtype":"?"}]}},{"id":27,"op":"Div","domain":"","name":"/Div_1","inputs":["/Clip_1_output_0","/Constant_1_output_0"],"outputs":["deterministic_continuous_actions"],"attrs":{},"weight_names":[],"metrics":{"fanin":2,"fanout":0,"input_count":2,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":7,"stage_hint":7,"branch_count":1,"branch_ids":[4]},"io":{"inputs":[{"name":"/Clip_1_output_0","shape":["?"],"dtype":"?"},{"name":"/Constant_1_output_0","shape":["?"],"dtype":"?"}],"outputs":[{"name":"deterministic_continuous_actions","shape":["batch",3],"dtype":"FLOAT"}]}},{"id":28,"op":"Identity","domain":"","name":"Identity_28","inputs":["version_number.1"],"outputs":["version_number"],"attrs":{},"weight_names":["version_number.1"],"metrics":{"fanin":0,"fanout":0,"input_count":1,"output_count":1,"weight_tensors":1,"weight_params":1,"depth_hint":0,"stage_hint":0,"branch_count":1,"branch_ids":[0]},"io":{"inputs":[{"name":"version_number.1","shape":[1],"dtype":"FLOAT"}],"outputs":[{"name":"version_number","shape":[1],"dtype":"FLOAT"}]}},{"id":29,"op":"Identity","domain":"","name":"Identity_29","inputs":["memory_size_vector"],"outputs":["memory_size"],"attrs":{},"weight_names":["memory_size_vector"],"metrics":{"fanin":0,"fanout":0,"input_count":1,"output_count":1,"weight_tensors":1,"weight_params":1,"depth_hint":0,"stage_hint":0,"branch_count":1,"branch_ids":[1]},"io":{"inputs":[{"name":"memory_size_vector","shape":[1],"dtype":"FLOAT"}],"outputs":[{"name":"memory_size","shape":[1],"dtype":"FLOAT"}]}},{"id":30,"op":"Identity","domain":"","name":"Identity_30","inputs":["continuous_act_size_vector"],"outputs":["continuous_action_output_shape"],"attrs":{},"weight_names":[],"metrics":{"fanin":1,"fanout":0,"input_count":1,"output_count":1,"weight_tensors":0,"weight_params":0,"depth_hint":0,"stage_hint":0,"branch_count":1,"branch_ids":[3]},"io":{"inputs":[{"name":"continuous_act_size_vector","shape":["?"],"dtype":"?"}],"outputs":[{"name":"continuous_action_output_shape","shape":[1],"dtype":"FLOAT"}]}}],"edges":[{"from":0,"to":30,"count":1,"tensors":["continuous_act_size_vector"]},{"from":1,"to":2,"count":1,"tensors":["/network_body/observation_encoder/processors.0/normalizer/Sub_output_0"]},{"from":2,"to":3,"count":1,"tensors":["/network_body/observation_encoder/processors.0/normalizer/Div_output_0"]},{"from":3,"to":4,"count":1,"tensors":["/network_body/observation_encoder/processors.0/normalizer/Clip_output_0"]},{"from":4,"to":5,"count":1,"tensors":["/network_body/observation_encoder/Concat_output_0"]},{"from":5,"to":6,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0"]},{"from":5,"to":7,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.0/Gemm_output_0"]},{"from":6,"to":7,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.1/Sigmoid_output_0"]},{"from":7,"to":8,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.1/Mul_output_0"]},{"from":8,"to":9,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0"]},{"from":8,"to":10,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.2/Gemm_output_0"]},{"from":9,"to":10,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.3/Sigmoid_output_0"]},{"from":10,"to":11,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.3/Mul_output_0"]},{"from":11,"to":12,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0"]},{"from":11,"to":13,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.4/Gemm_output_0"]},{"from":12,"to":13,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.5/Sigmoid_output_0"]},{"from":13,"to":14,"count":1,"tensors":["/network_body/_body_endoder/seq_layers/seq_layers.5/Mul_output_0"]},{"from":14,"to":16,"count":1,"tensors":["/_continuous_distribution/mu/Gemm_output_0"]},{"from":14,"to":19,"count":1,"tensors":["/_continuous_distribution/mu/Gemm_output_0"]},{"from":14,"to":21,"count":1,"tensors":["/_continuous_distribution/mu/Gemm_output_0"]},{"from":14,"to":25,"count":1,"tensors":["/_continuous_distribution/mu/Gemm_output_0"]},{"from":15,"to":16,"count":1,"tensors":["/_continuous_distribution/Constant_output_0"]},{"from":16,"to":17,"count":1,"tensors":["/_continuous_distribution/Mul_output_0"]},{"from":17,"to":18,"count":1,"tensors":["/_continuous_distribution/Add_output_0"]},{"from":18,"to":20,"count":1,"tensors":["/_continuous_distribution/Exp_output_0"]},{"from":19,"to":20,"count":1,"tensors":["/RandomNormalLike_output_0"]},{"from":20,"to":21,"count":1,"tensors":["/Mul_output_0"]},{"from":21,"to":22,"count":1,"tensors":["/Add_output_0"]},{"from":22,"to":24,"count":1,"tensors":["/Clip_output_0"]},{"from":23,"to":24,"count":1,"tensors":["/Constant_output_0"]},{"from":25,"to":27,"count":1,"tensors":["/Clip_1_output_0"]},{"from":26,"to":27,"count":1,"tensors":["/Constant_1_output_0"]}],"weights":{"version_number.1":{"shape":[1],"dtype":"float32","params":1,"mean":3.0,"std":0.0,"min":3.0,"max":3.0,"sparsity":0.0,"hist":[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],"hist_edges":[2.5,2.5625,2.625,2.6875,2.75,2.8125,2.875,2.9375,3.0,3.0625,3.125,3.1875,3.25,3.3125,3.375,3.4375,3.5]},"memory_size_vector":{"shape":[1],"dtype":"float32","params":1,"mean":0.0,"std":0.0,"min":0.0,"max":0.0,"sparsity":1.0,"hist":[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],"hist_edges":[-0.5,-0.4375,-0.375,-0.3125,-0.25,-0.1875,-0.125,-0.0625,0.0,0.0625,0.125,0.1875,0.25,0.3125,0.375,0.4375,0.5]},"network_body.observation_encoder.processors.0.normalizer.running_mean":{"shape":[31],"dtype":"float32","params":31,"mean":4.88179,"std":16.87164,"min":-0.07154,"max":83.43416,"sparsity":0.2258,"hist":[29,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],"hist_edges":[-0.0715,5.1476,10.3667,15.5858,20.8049,26.024,31.2431,36.4622,41.6813,46.9004,52.1195,57.3386,62.5577,67.7768,72.9959,78.2151,83.4342]},"network_body._body_endoder.seq_layers.0.weight":{"shape":[256,31],"dtype":"float32","params":7936,"mean":-0.00196,"std":0.1996,"min":-0.76246,"max":0.7497,"sparsity":0.0442,"hist":[6,19,52,157,354,701,1103,1498,1484,1184,747,387,166,55,18,5],"hist_edges":[-0.7625,-0.6679,-0.5734,-0.4789,-0.3844,-0.2899,-0.1954,-0.1009,-0.0064,0.0881,0.1826,0.2772,0.3717,0.4662,0.5607,0.6552,0.7497]},"network_body._body_endoder.seq_layers.0.bias":{"shape":[256],"dtype":"float32","params":256,"mean":0.01603,"std":0.06214,"min":-0.14127,"max":0.16666,"sparsity":0.1133,"hist":[4,7,6,11,22,15,27,20,26,35,37,23,10,6,4,3],"hist_edges":[-0.1413,-0.122,-0.1028,-0.0835,-0.0643,-0.045,-0.0258,-0.0065,0.0127,0.0319,0.0512,0.0704,0.0897,0.1089,0.1282,0.1474,0.1667]},"network_body._body_endoder.seq_layers.2.weight":{"shape":[256,256],"dtype":"float32","params":65536,"mean":-0.01273,"std":0.09276,"min":-0.48143,"max":0.37006,"sparsity":0.0869,"hist":[2,6,44,205,866,2561,6079,10931,14604,13898,9730,4669,1502,356,73,10],"hist_edges":[-0.4814,-0.4282,-0.375,-0.3218,-0.2686,-0.2153,-0.1621,-0.1089,-0.0557,-0.0025,0.0508,0.104,0.1572,0.2104,0.2636,0.3168,0.3701]},"network_body._body_endoder.seq_layers.2.bias":{"shape":[256],"dtype":"float32","params":256,"mean":-0.01334,"std":0.05608,"min":-0.13367,"max":0.0954,"sparsity":0.1133,"hist":[3,11,10,20,16,14,18,27,26,12,24,19,18,17,12,9],"hist_edges":[-0.1337,-0.1194,-0.105,-0.0907,-0.0764,-0.0621,-0.0478,-0.0335,-0.0191,-0.0048,0.0095,0.0238,0.0381,0.0525,0.0668,0.0811,0.0954]},"network_body._body_endoder.seq_layers.4.weight":{"shape":[256,256],"dtype":"float32","params":65536,"mean":-0.01909,"std":0.08954,"min":-0.51284,"max":0.379,"sparsity":0.0885,"hist":[4,3,27,113,567,1987,5272,11016,15666,15145,9988,4287,1189,230,36,6],"hist_edges":[-0.5128,-0.4571,-0.4014,-0.3456,-0.2899,-0.2341,-0.1784,-0.1227,-0.0669,-0.0112,0.0446,0.1003,0.156,0.2118,0.2675,0.3233,0.379]},"network_body._body_endoder.seq_layers.4.bias":{"shape":[256],"dtype":"float32","params":256,"mean":-0.01134,"std":0.06673,"min":-0.13545,"max":0.13349,"sparsity":0.0859,"hist":[6,18,18,24,17,25,17,19,17,21,17,17,14,15,8,3],"hist_edges":[-0.1355,-0.1186,-0.1018,-0.085,-0.0682,-0.0514,-0.0346,-0.0178,-0.001,0.0158,0.0326,0.0494,0.0663,0.0831,0.0999,0.1167,0.1335]},"action_model._continuous_distribution.log_sigma":{"shape":[1,3],"dtype":"float32","params":3,"mean":-0.24605,"std":0.70366,"min":-1.08977,"max":0.63276,"sparsity":0.0,"hist":[1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],"hist_edges":[-1.0898,-0.9821,-0.8745,-0.7668,-0.6591,-0.5515,-0.4438,-0.3362,-0.2285,-0.1208,-0.0132,0.0945,0.2021,0.3098,0.4174,0.5251,0.6328]},"action_model._continuous_distribution.mu.weight":{"shape":[3,256],"dtype":"float32","params":768,"mean":-0.01758,"std":0.07036,"min":-0.2738,"max":0.1762,"sparsity":0.1875,"hist":[2,2,5,12,35,44,54,71,81,176,136,59,51,29,8,3],"hist_edges":[-0.2738,-0.2457,-0.2176,-0.1894,-0.1613,-0.1332,-0.1051,-0.0769,-0.0488,-0.0207,0.0074,0.0356,0.0637,0.0918,0.1199,0.1481,0.1762]},"action_model._continuous_distribution.mu.bias":{"shape":[3],"dtype":"float32","params":3,"mean":0.09524,"std":0.04836,"min":0.03268,"max":0.15044,"sparsity":0.0,"hist":[1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],"hist_edges":[0.0327,0.04,0.0474,0.0548,0.0621,0.0695,0.0768,0.0842,0.0916,0.0989,0.1063,0.1136,0.121,0.1284,0.1357,0.1431,0.1504]},"onnx::Div_56":{"shape":[31],"dtype":"float32","params":31,"mean":6.67276,"std":17.70449,"min":0.00014,"max":90.4892,"sparsity":0.0645,"hist":[25,2,2,0,0,0,0,0,1,0,0,0,0,0,0,1],"hist_edges":[0.0001,5.6557,11.3113,16.9668,22.6224,28.278,33.9335,39.5891,45.2447,50.9002,56.5558,62.2114,67.8669,73.5225,79.1781,84.8336,90.4892]}},"tensors":[{"name":"action_model._continuous_distribution.log_sigma","shape":[1,3],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"action_model._continuous_distribution.mu.bias","shape":[3],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"action_model._continuous_distribution.mu.weight","shape":[3,256],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"continuous_action_output_shape","shape":[1],"dtype":"FLOAT","roles":["output"],"consumers":0},{"name":"continuous_actions","shape":["batch",3],"dtype":"FLOAT","roles":["output"],"consumers":0},{"name":"deterministic_continuous_actions","shape":["batch",3],"dtype":"FLOAT","roles":["output"],"consumers":0},{"name":"memory_size","shape":[1],"dtype":"FLOAT","roles":["output"],"consumers":0},{"name":"memory_size_vector","shape":[1],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body._body_endoder.seq_layers.0.bias","shape":[256],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body._body_endoder.seq_layers.0.weight","shape":[256,31],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body._body_endoder.seq_layers.2.bias","shape":[256],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body._body_endoder.seq_layers.2.weight","shape":[256,256],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body._body_endoder.seq_layers.4.bias","shape":[256],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body._body_endoder.seq_layers.4.weight","shape":[256,256],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"network_body.observation_encoder.processors.0.normalizer.running_mean","shape":[31],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"obs_0","shape":["batch",31],"dtype":"FLOAT","roles":["input"],"consumers":1},{"name":"onnx::Div_56","shape":[31],"dtype":"FLOAT","roles":["initializer"],"consumers":1},{"name":"version_number","shape":[1],"dtype":"FLOAT","roles":["output"],"consumers":0},{"name":"version_number.1","shape":[1],"dtype":"FLOAT","roles":["initializer"],"consumers":2}]};
+const columns = [[1,2,30,28,29,0],[3,4],[5,6],[7,8],[9,11,10],[12,13,15],[14,16,19,25,26],[17,18,27],[20,21,23],[22,24]];
+const nodeCol = {"0":0,"1":0,"15":5,"23":8,"26":6,"28":0,"29":0,"30":0,"2":0,"3":1,"4":1,"5":2,"6":2,"7":3,"8":3,"9":4,"10":4,"11":4,"12":5,"13":5,"14":6,"16":6,"19":6,"25":6,"17":7,"27":7,"18":7,"20":8,"21":8,"22":9,"24":9};
+const stageMeta = [{"stage":0,"count":6,"top_ops":["Identity","Div","Sub"],"depth_min":0,"depth_max":1,"branches":5,"shared":2,"aux":3},{"stage":1,"count":2,"top_ops":["Clip","Concat"],"depth_min":2,"depth_max":3,"branches":2,"shared":2,"aux":0},{"stage":2,"count":2,"top_ops":["Gemm","Sigmoid"],"depth_min":4,"depth_max":5,"branches":2,"shared":2,"aux":0},{"stage":3,"count":2,"top_ops":["Gemm","Mul"],"depth_min":6,"depth_max":7,"branches":2,"shared":2,"aux":0},{"stage":4,"count":3,"top_ops":["Gemm","Mul","Sigmoid"],"depth_min":8,"depth_max":10,"branches":2,"shared":3,"aux":0},{"stage":5,"count":3,"top_ops":["Constant","Mul","Sigmoid"],"depth_min":0,"depth_max":12,"branches":2,"shared":2,"aux":1},{"stage":6,"count":5,"top_ops":["Clip","Constant","Gemm"],"depth_min":0,"depth_max":14,"branches":2,"shared":1,"aux":1},{"stage":7,"count":3,"top_ops":["Add","Div","Exp"],"depth_min":15,"depth_max":16,"branches":2,"shared":0,"aux":0},{"stage":8,"count":3,"top_ops":["Add","Constant","Mul"],"depth_min":0,"depth_max":18,"branches":1,"shared":0,"aux":1},{"stage":9,"count":2,"top_ops":["Clip","Div"],"depth_min":19,"depth_max":20,"branches":1,"shared":0,"aux":0}];
+const edges = MODEL.edges || [];
+
+const inputNames = new Set(MODEL.inputs.map(function(i) { return i.name; }));
+const outputNames = new Set(MODEL.outputs.map(function(o) { return o.name; }));
+
+const nodeById = {};
+MODEL.nodes.forEach(function(n) { nodeById[n.id] = n; });
+
+const NODE_R = 9;
+const COL_GAP = 138;
+const ROW_GAP = 46;
+const PAD_X = 70;
+const PAD_Y = 72;
+const MAX_SHOW = Math.max(14, Math.min(30, Math.floor((window.innerHeight - 280) / ROW_GAP)));
+
+function splitColumn(col) {
+  if (col.length <= MAX_SHOW) {
+    return { shown: col.slice(), hidden: 0, head: col.length, tail: 0 };
+  }
+  const head = Math.max(8, Math.floor(MAX_SHOW * 0.65));
+  const tail = MAX_SHOW - head;
+  return {
+    shown: col.slice(0, head).concat(col.slice(col.length - tail)),
+    hidden: col.length - MAX_SHOW,
+    head: head,
+    tail: tail,
+  };
+}
+
+const nodePos = {};
+const colMeta = [];
+
+columns.forEach(function(col, ci) {
+  const split = splitColumn(col);
+  const shownSet = new Set(split.shown);
+
+  split.shown.forEach(function(nid, localRi) {
+    const isTail = split.hidden > 0 && localRi >= split.head;
+    const row = isTail ? localRi + 1 : localRi;
+    nodePos[nid] = {
+      x: PAD_X + ci * COL_GAP,
+      y: PAD_Y + row * ROW_GAP,
+      col: ci,
+      row: row,
+      shown: true,
+    };
+  });
+
+  col.forEach(function(nid) {
+    if (!shownSet.has(nid)) {
+      nodePos[nid] = {
+        x: PAD_X + ci * COL_GAP,
+        y: -9999,
+        col: ci,
+        row: -1,
+        shown: false,
+      };
+    }
+  });
+
+  colMeta.push({
+    count: col.length,
+    hidden: split.hidden,
+    shownCount: split.shown.length + (split.hidden > 0 ? 1 : 0),
+    breakRow: split.hidden > 0 ? split.head : -1,
+  });
+});
+
+const numCols = Math.max(columns.length, 1);
+const maxRows = Math.max.apply(null, colMeta.map(function(c) { return c.shownCount; }).concat([1]));
+const W = PAD_X * 2 + Math.max(0, numCols - 1) * COL_GAP;
+const H = PAD_Y * 2 + Math.max(0, maxRows - 1) * ROW_GAP;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const DPR = window.devicePixelRatio || 1;
+
+function resize() {
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  draw();
+}
+
+function nodeColor(n) {
+  const isOut = n.outputs.some(function(o) { return outputNames.has(o); });
+  if (isOut) return { fill:'#1a0000', stroke:'#c0392b', dot:'#c0392b' };
+
+  const isIn = n.inputs.some(function(i) { return inputNames.has(i); });
+  if (isIn) return { fill:'#1a1400', stroke:'#f0e68c', dot:'#f0e68c' };
+
+  if (n.op === 'Constant' || n.op === 'Identity') {
+    return { fill:'#0d0d0d', stroke:'#f0e68c', dot:'#555', opacity:0.45 };
+  }
+  return { fill:'#0d0d0d', stroke:'#f0e68c', dot:'#f0e68c' };
+}
+
+function shapeText(shape) {
+  if (!shape || !shape.length) return '?';
+  return shape.join('x');
+}
+
+function shortName(name) {
+  if (!name) return '(anonymous)';
+  const parts = String(name).split('/');
+  return parts[parts.length - 1] || name;
+}
+
+function attrValue(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') {
+    const raw = JSON.stringify(v);
+    if (raw.length > 80) return raw.slice(0, 77) + '...';
+    return raw;
+  }
+  const raw = String(v);
+  if (raw.length > 80) return raw.slice(0, 77) + '...';
+  return raw;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function tensorBrief(t) {
+  return escapeHtml(shortName(t.name)) +
+    ' <span style="color:#666">' +
+    escapeHtml(String(t.dtype || '?')) +
+    ' [' + escapeHtml(shapeText(t.shape || [])) + ']</span>';
+}
+
+function draw(hovered) {
+  ctx.clearRect(0, 0, W, H);
+
+  columns.forEach(function(col, ci) {
+    const x = PAD_X + ci * COL_GAP;
+    const meta = colMeta[ci];
+    const sm = stageMeta[ci] || {};
+    const topOps = Array.isArray(sm.top_ops) ? sm.top_ops : [];
+    const label = topOps.slice(0, 2).join('+') || 'flow';
+    const depthLabel = (sm.depth_min !== undefined)
+      ? ('d' + sm.depth_min + (sm.depth_max !== sm.depth_min ? '-' + sm.depth_max : ''))
+      : '';
+
+    const bandLeft = ci === 0 ? PAD_X - COL_GAP * 0.45 : PAD_X + (ci - 0.5) * COL_GAP;
+    const bandW = COL_GAP * 0.9;
+    ctx.fillStyle = ci % 2 === 0 ? 'rgba(255,255,255,0.012)' : 'rgba(240,230,140,0.015)';
+    ctx.fillRect(bandLeft, PAD_Y - 36, bandW, H - PAD_Y + 28);
+
+    ctx.font = '7px Courier New';
+    ctx.fillStyle = '#444';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, PAD_Y - 30);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillText('stage ' + ci, x, PAD_Y - 20);
+    if (depthLabel) {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillText(depthLabel, x, PAD_Y - 10);
+    }
+
+    if (meta.hidden > 0) {
+      const y = PAD_Y + meta.breakRow * ROW_GAP + 12;
+      ctx.fillStyle = '#353535';
+      ctx.fillText('... ' + meta.hidden + ' hidden ...', x, y);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x - NODE_R - 2, y - 5);
+      ctx.lineTo(x + NODE_R + 2, y - 5);
+      ctx.stroke();
+    }
+  });
+
+  ctx.lineCap = 'round';
+  edges.forEach(function(edge) {
+    const from = nodePos[edge.from];
+    const to = nodePos[edge.to];
+    if (!from || !to || !from.shown || !to.shown) return;
+
+    const span = Math.max(1, to.col - from.col);
+    const alpha = Math.min(0.38, 0.11 + span * 0.03);
+    const lineW = Math.min(1.8, 0.5 + Math.log2((edge.count || 1) + 1) * 0.35);
+
+    const toNode = nodeById[edge.to];
+    const isOutputPath = toNode && toNode.outputs.some(function(o) { return outputNames.has(o); });
+
+    const deltaX = to.x - from.x;
+    const bend = Math.max(20, Math.min(74, deltaX * 0.35));
+    const c1x = from.x + bend;
+    const c2x = to.x - bend;
+
+    ctx.beginPath();
+    ctx.moveTo(from.x + NODE_R, from.y);
+    ctx.bezierCurveTo(c1x, from.y, c2x, to.y, to.x - NODE_R, to.y);
+    ctx.strokeStyle = isOutputPath
+      ? 'rgba(192,57,43,' + alpha + ')'
+      : 'rgba(240,230,140,' + (alpha * 0.8) + ')';
+    ctx.lineWidth = lineW;
+    ctx.stroke();
+  });
+
+  MODEL.nodes.forEach(function(n) {
+    const pos = nodePos[n.id];
+    if (!pos || !pos.shown) return;
+
+    const c = nodeColor(n);
+    const isHovered = hovered && hovered.id === n.id;
+
+    ctx.globalAlpha = c.opacity || 1;
+
+    if (isHovered) {
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, NODE_R + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = c.stroke;
+      ctx.lineWidth = 0.5;
+      ctx.globalAlpha = 0.3;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, NODE_R, 0, Math.PI * 2);
+    ctx.fillStyle = isHovered ? '#1a1a00' : c.fill;
+    ctx.fill();
+    ctx.strokeStyle = c.stroke;
+    ctx.lineWidth = isHovered ? 2 : 1.2;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, isHovered ? 3.5 : 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = c.dot;
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+
+    ctx.font = '7px Courier New';
+    ctx.fillStyle = isHovered ? '#f0e68c' : '#333';
+    ctx.textAlign = 'center';
+    ctx.fillText((n.op || '').slice(0, 10), pos.x, pos.y + NODE_R + 9);
+  });
+}
+
+const tooltip = document.getElementById('tooltip');
+const ttOp = document.getElementById('tt-op');
+const ttBody = document.getElementById('tt-body');
+const ttHist = document.getElementById('tt-hist');
+
+function showTooltip(n, px, py) {
+  const m = n.metrics || {};
+  ttOp.textContent = n.op || '(unknown)';
+
+  let html = '';
+  html += '<strong>name</strong> ' + escapeHtml(shortName(n.name || n.op)) + '<br>';
+  html += '<strong>id</strong> ' + n.id +
+    '  <strong>stage</strong> ' + (m.stage_hint ?? nodeCol[n.id] ?? 0) +
+    '  <strong>depth</strong> ' + (m.depth_hint ?? nodeCol[n.id] ?? 0) + '<br>';
+  html += '<strong>fanin</strong> ' + (m.fanin ?? 0) + '  <strong>fanout</strong> ' + (m.fanout ?? 0) + '<br>';
+  html += '<strong>inputs</strong> ' + (m.input_count ?? n.inputs.length) +
+    '  <strong>outputs</strong> ' + (m.output_count ?? n.outputs.length) + '<br>';
+
+  if ((m.branch_count || 0) > 0) {
+    html += '<strong>flow lanes</strong> ' + m.branch_count;
+    if (Array.isArray(m.branch_ids) && m.branch_ids.length) {
+      html += ' (' + m.branch_ids.join(',') + ')';
+    }
+    html += '<br>';
+  }
+
+  if ((m.weight_tensors || 0) > 0) {
+    html += '<strong>weights</strong> ' + m.weight_tensors +
+      ' tensor(s), ' + Number(m.weight_params || 0).toLocaleString() + ' params<br>';
+  }
+
+  const attrPairs = Object.entries(n.attrs || {});
+  if (attrPairs.length) {
+    const attrPreview = attrPairs.slice(0, 6).map(function(entry) {
+      return escapeHtml(entry[0]) + '=' + escapeHtml(attrValue(entry[1]));
+    }).join('<br>');
+    html += '<br><strong>attrs</strong><br>' + attrPreview;
+    if (attrPairs.length > 6) {
+      html += '<br><span style="color:#666">+' + (attrPairs.length - 6) + ' more attrs</span>';
+    }
+  }
+
+  const inPreview = (n.io && n.io.inputs ? n.io.inputs : []).slice(0, 4);
+  if (inPreview.length) {
+    html += '<br><br><strong>input tensors</strong><br>' + inPreview.map(tensorBrief).join('<br>');
+  }
+
+  const outPreview = (n.io && n.io.outputs ? n.io.outputs : []).slice(0, 3);
+  if (outPreview.length) {
+    html += '<br><strong>output tensors</strong><br>' + outPreview.map(tensorBrief).join('<br>');
+  }
+
+  const weightNames = n.weight_names || [];
+  if (weightNames.length && MODEL.weights) {
+    const firstName = weightNames[0];
+    const w = MODEL.weights[firstName];
+    if (w) {
+      html += '<br><strong>weight sample</strong> ' + escapeHtml(shortName(firstName)) +
+        ' [' + escapeHtml(shapeText(w.shape || [])) + '] ' + escapeHtml(String(w.dtype || '?')) + '<br>';
+
+      if (typeof w.mean === 'number' && typeof w.std === 'number') {
+        html += '<strong>mean</strong> ' + w.mean + '  <strong>std</strong> ' + w.std + '<br>';
+      }
+      if (typeof w.min === 'number' && typeof w.max === 'number') {
+        html += '<strong>range</strong> [' + w.min + ', ' + w.max + ']<br>';
+      }
+      if (typeof w.sparsity === 'number') {
+        html += '<strong>near-zero</strong> ' + (w.sparsity * 100).toFixed(1) + '%';
+      }
+
+      if (Array.isArray(w.hist) && w.hist.length) {
+        const maxH = Math.max.apply(null, w.hist.concat([1]));
+        ttHist.innerHTML = w.hist.map(function(v) {
+          const h = Math.round((v / maxH) * 28);
+          return '<div class="hist-bar" style="height:' + h + 'px"></div>';
+        }).join('');
+      } else {
+        ttHist.innerHTML = '';
+      }
+    } else {
+      ttHist.innerHTML = '';
+    }
+  } else {
+    ttHist.innerHTML = '';
+  }
+
+  const isIn = n.inputs.some(function(i) { return inputNames.has(i); });
+  const isOut = n.outputs.some(function(o) { return outputNames.has(o); });
+  if (isIn) html += '<br><strong style="color:#f0e68c">left boundary (network input)</strong>';
+  if (isOut) html += '<br><strong style="color:#c0392b">right boundary (network output)</strong>';
+
+  ttBody.innerHTML = html;
+
+  tooltip.style.display = 'block';
+  const tw = tooltip.offsetWidth;
+  const th = tooltip.offsetHeight;
+
+  let lx = px + 18;
+  let ly = py - 10;
+  if (lx + tw > window.innerWidth - 10) lx = px - tw - 10;
+  if (ly + th > window.innerHeight - 10) ly = py - th - 10;
+  tooltip.style.left = lx + 'px';
+  tooltip.style.top = ly + 'px';
+}
+
+function hideTooltip() {
+  tooltip.style.display = 'none';
+}
+
+function hitNode(mx, my) {
+  for (const n of MODEL.nodes) {
+    const pos = nodePos[n.id];
+    if (!pos || !pos.shown) continue;
+    const dx = mx - pos.x;
+    const dy = my - pos.y;
+    if (dx * dx + dy * dy <= (NODE_R + 4) * (NODE_R + 4)) return n;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousemove', function(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const n = hitNode(mx, my);
+  if (n) {
+    canvas.style.cursor = 'pointer';
+    draw(n);
+    showTooltip(n, e.clientX, e.clientY);
+  } else {
+    canvas.style.cursor = 'crosshair';
+    draw(null);
+    hideTooltip();
+  }
+});
+
+canvas.addEventListener('mouseleave', function() {
+  draw(null);
+  hideTooltip();
+});
+
+resize();
+window.addEventListener('resize', resize);
+</script>
+</body>
+</html>
