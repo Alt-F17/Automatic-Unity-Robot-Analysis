@@ -42,14 +42,7 @@ public class MLMManager : MonoBehaviour
     }
 
     void RunModel()
-    {
-        List<float> obs = new List<float>();
-
-        Vector3 boxPos = movableBox != null ? movableBox.position : boxStartPosition;
-        Vector3 boxVel = movableBox != null ? movableBox.GetComponent<Rigidbody>().velocity : Vector3.zero;
-
-        float localFloorY = floor != null ? floor.position.y : transform.position.y;
-
+    {   
         float obs[] = CollectObservations();
 
         // Convert to tensor
@@ -59,18 +52,12 @@ public class MLMManager : MonoBehaviour
 
         using TensorFloat output = (worker.PeekOutput() as TensorFloat).ReadbackAndClone();
 
-        worker.Execute(inputTensor);
+        float baseControl = Mathf.Clamp(output[0, 0], -1f, 1f);
+        float shoulderControl = Mathf.Clamp(output[0, 1], -1f, 1f);
+        float elbowControl = Mathf.Clamp(output[0, 2], -1f, 1f);
 
-        // The output is a 1D tensor with 3 values for base, shoulder, and elbow controls
+        robot.ApplyJointAction(baseControl, shoulderControl, elbowControl);
 
-        float baseControl = output[0];
-        float shoulderControl = output[1];
-        float elbowControl = output[2];
-
-        ApplyActions(baseControl, shoulderControl, elbowControl);
-
-        input.Dispose();
-        output.Dispose();
     }
 
 
@@ -93,9 +80,35 @@ public class MLMManager : MonoBehaviour
         AddVector3(obs, agentTransform.InverseTransformPoint(boxPos));
         AddVector3(obs, agentTransform.InverseTransformPoint(targetZoneBPos));
 
-        obs.AddRange(ToList(boxPos));
-        obs.AddRange(ToList(boxVel));
-        obs.Add(localFloorY);
+        Vector3 boxPosXZ = new Vector3(boxPos.x, 0f, boxPos.z);
+        Vector3 targetZoneBPosXZ = new Vector3(targetZoneBPos.x, 0f, targetZoneBPos.z);
+        obs.Add(Vector3.Distance(boxPosXZ, targetZoneBPosXZ));
+
+        obs.Add(robotAgent.GetNormalizedAngle(robotAgent.baseJoint));
+        obs.Add(robotAgent.GetNormalizedAngle(robotAgent.shoulderJoint));
+        obs.Add(robotAgent.GetNormalizedAngle(robotAgent.elbowJoint));
+        obs.Add(robotAgent.GetJointVelocity(robotAgent.baseJoint));
+        obs.Add(robotAgent.GetJointVelocity(robotAgent.shoulderJoint));
+        obs.Add(robotAgent.GetJointVelocity(robotAgent.elbowJoint));
+
+        AddVector3(obs, agentTransform.InverseTransformPoint(boxVel));
+        AddVector3(obs, agentTransform.InverseTransformPoint(magnet.GetComponent<Rigidbody>().velocity));
+
+        obs.Add(robotAgent.IsBoxAttached ? 1f : 0f);                              
+        obs.Add(distToBox < 0.5f ? 1f : 0f);                                       
+        obs.Add(Vector3.Distance(boxPos, targetPos) < 0.5f ? 1f : 0f);           
+        obs.Add(0f);                                                               
+        obs.Add(boxPos.y - floorY);                                                 
+        obs.Add(0f);                                                                
+        obs.Add(1f);
+
+        // check if the observation count matches the number of nodes passed
+
+        if (obs.Count != OBS_SIZE)
+        {
+            Debug.LogError($"Observation count {obs.Count} does not match expected size {OBS_SIZE}.");
+        }
+
         return obs.ToArray();
     }
 
