@@ -4,22 +4,34 @@ using System.Numerics;
 using System.Threading.Tasks.Dataflow;
 using UnityEngine;
 
-
+// draw torque vectors for angular force visualization
 
 public class ForceVisualizer : MonoBehaviour
 {
-    public Vector3 angularVelocity = 0f;
+    public RobotAgentDupe robot;
+
     void Start()
-    {
-        robot = GetComponent<RigidBody>();
+    {   
+        if(robot == null)
+        {
+            robot = GetComponent<RobotAgentDupe>();
+        }
     }
-    void onDrawGizmos(){
-    Gizmos.color = Color.green;
-    Gizmos.DrawRay(transform.position, transform.forward * 2);
+
+    void Update(){
+        DrawTorque(robot.baseJoint, Color.red);
+        DrawTorque(robot.shoulderJoint, Color.green);
+        DrawTorque(robot.elbowJoint, Color.blue);
     }
-    void Update()
+
+    void DrawTorque(ArticulationBody joint, Color color)
     {
-        Debug.DrawRay(Transform.position, appliedForce, Color.red);
+        if(joint == null) return;
+
+        Vector3 torque = joint.torque;
+        Vector3 jointPosition = joint.transform.position;
+        float scale = 0.1f; // Adjust this scale factor as needed for better visualization
+        Debug.DrawRay(jointPosition, torque * scale, color);
     }
 }
 

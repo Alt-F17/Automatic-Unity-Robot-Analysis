@@ -792,6 +792,38 @@ public class RobotAgentDupe : Agent
         joint.xDrive = drive;
     }
 
+    // reward-free version of ApplyJointTorque for the Model loader
+
+    public void ApplyJointTorqueRaw(float baseControl, float shoulderControl, float elbowControl)
+    {
+         if (joint == null) return;
+        if (joint.jointPosition.dofCount == 0) return; // skip 0-DOF joints (i.e. magnet)
+
+        var drive = joint.xDrive;
+        
+        // apply action smoothing
+        float desiredTarget = drive.target + control * movementSpeed * Time.fixedDeltaTime;
+        drive.target = Mathf.Lerp(drive.target, desiredTarget, actionSmoothing);
+
+        bool isFreeMotion = joint.twistLock == ArticulationDofLock.FreeMotion || 
+                            joint.swingYLock == ArticulationDofLock.FreeMotion || 
+                            joint.swingZLock == ArticulationDofLock.FreeMotion;
+
+        if (!isFreeMotion)
+        {
+            drive.target = Mathf.Clamp(drive.target, drive.lowerLimit, drive.upperLimit);
+        }
+        
+        joint.xDrive = drive;
+    }
+
+    public void ApplyActionsInference(float baseControl, float shoulderControl, float elbowControl)
+    {
+        ApplyJointTorqueRaw(baseRotation, baseControl);
+        ApplyJointTorqueRaw(shoulderJoint, shoulderControl);
+        ApplyJointTorqueRaw(elbowJoint, elbowControl);
+    }
+
     private void ConfigureJointDrives()
     {
         Debug.Log("<color=magenta>=== RobotArm Joint Configuration ===</color>");
@@ -919,7 +951,7 @@ public class RobotAgentDupe : Agent
     /// Returns an estimate of the applied torque since Unity's jointForce often returns 0 
     /// for position-driven xDrive ArticulationBodies. We estimate the torque based on 
     /// the commanded target velocity and the drive's stiffness/damping parameters.
-    private float GetJointTorque(ArticulationBody joint)
+    public float GetJointTorque(ArticulationBody joint)
     {
         if (joint == null) return 0f;
         if (joint.jointPosition.dofCount == 0 || joint.jointVelocity.dofCount == 0) return 0f;

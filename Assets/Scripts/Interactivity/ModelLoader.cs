@@ -9,11 +9,16 @@ using System.Threading.Tasks.Dataflow;
 
 public class MLMManager : MonoBehaviour
 {
+
+    [Header("Model")]
     public ModelAsset onnxModel;
+
+    [Header("Environment References")]
     public IModel runtimeModel;
     public RobotAgentDupe robotAgent;
     private Worker worker;
 
+    private const float OBS_SIZE = 26;
 
     void Start()
     {
@@ -21,8 +26,13 @@ public class MLMManager : MonoBehaviour
         if (onnxModel != null)
         {   
             runtimeModel = onnxModel.LoadModel();
-            worker =  new Worker(modelManager.getModel(), BackendType.GPUComplete);
+            worker =  new Worker(runtimeModel, BackendType.GPUComplete);
             Debug.Log("Model loaded successfully in Awake.");
+        }
+        else
+        {
+            Debug.LogError("ONNX model asset is not assigned in the inspector.");
+            return;
         }
     }
 
@@ -43,10 +53,13 @@ public class MLMManager : MonoBehaviour
         float obs[] = CollectObservations();
 
         // Convert to tensor
-        Tensor input = new Tensor(1, obs.Count, obs.ToArray());
+        using var inputTensor = new TensorFloat(new TensorShape(1, OBS_SIZE), obs);
 
-        worker.Execute(input);
-        Tensor output = worker.PeekOutput();
+        worker.Schedule(inputTensor);
+
+        using TensorFloat output = (worker.PeekOutput() as TensorFloat).ReadbackAndClone();
+
+        worker.Execute(inputTensor);
 
         // The output is a 1D tensor with 3 values for base, shoulder, and elbow controls
 
@@ -60,12 +73,40 @@ public class MLMManager : MonoBehaviour
         output.Dispose();
     }
 
-    List<float> ToList(Vector3 v)
+
+    float[] CollectObservations()
     {
-        return new List<float> { v.x, v.y, v.z };
+        List<float> obs = new List<float>(OBS_SIZE);
+
+        Transform agentTransform = robotAgent.transform;
+        Transform magnet = robotAgent.Magnet;
+        Rigidbody box = robotAgent.MovableBox;
+        Transform floor = robotAgent.Floor;
+        Transform targetZoneB = robotAgent.TargetZoneB;
+
+        Vector3 boxPos = movableBox != null ? movableBox.position : boxStartPosition;
+        Vector3 boxVel = movableBox != null ? movableBox.GetComponent<Rigidbody>().velocity : Vector3.zero;
+        Vector3 targetZoneBPos = targetZoneB != null ? targetZoneB.position : targetInitialPosition;
+        float localFloorY = floor != null ? floor.position.y : transform.position.y;
+
+        AddVector3(obs, agentTransform.InverseTransformPoint(magnet.position));
+        AddVector3(obs, agentTransform.InverseTransformPoint(boxPos));
+        AddVector3(obs, agentTransform.InverseTransformPoint(targetZoneBPos));
+
+        obs.AddRange(ToList(boxPos));
+        obs.AddRange(ToList(boxVel));
+        obs.Add(localFloorY);
+        return obs.ToArray();
     }
+
+    static void AddVector3(List<float> list, Vector3 vec)
+    {
+        list.Add(vec.x);
+        list.Add(vec.y);
+        list.Add(vec.z);
         
     }
+
     void Destroy()
     {
         worker?.Dispose();
@@ -74,15 +115,14 @@ public class MLMManager : MonoBehaviour
     {
         return runtimeModel;
     }
-    void applyAction(tensor output)
+    void applyAction(Tensor output)
     {
         float baseControl = output[0];
         float shoulderControl = output[1];
         float elbowControl = output[2];
 
-        ApplyJointTorque(baseRotation, baseControl);
-        ApplyJointTorque(shoulderJoint, shoulderControl);
-        ApplyJointTorque(elbowJoint, elbowControl);
-
+        ApplyJointTorqueRaw(baseRotation, baseControl);
+        ApplyJointTorqueRaw(shoulderJoint, shoulderControl);
+        ApplyJointTorqueRaw(elbowJoint, elbowControl);
     }
 }
