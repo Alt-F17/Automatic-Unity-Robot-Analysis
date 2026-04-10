@@ -4,3 +4,7 @@ mlagents==1.0.0
 torch
 torchaudio
 torchvision
+netron
+pandas
+matplotlib
+questionary
