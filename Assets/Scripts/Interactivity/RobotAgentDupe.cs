@@ -10,16 +10,16 @@ public class RobotAgentDupe : Agent
 {
     [Header("Robot Joint Components")]
     [SerializeField] private ArticulationBody rootBody;        // root ArticulationBody (Fixed) — Base
-    [SerializeField] private ArticulationBody baseRotation;    // rotates entire arm (Y-axis) — Body
-    [SerializeField] private ArticulationBody shoulderJoint;   // shoulder joint — UpperArm
-    [SerializeField] private ArticulationBody elbowJoint;      // elbow joint — ForeArm
-    [SerializeField] private Transform magnet;                 // end obj with magnet — Hand
+    [SerializeField] public ArticulationBody baseRotation;    // rotates entire arm (Y-axis) — Body
+    [SerializeField] public ArticulationBody shoulderJoint;   // shoulder joint — UpperArm
+    [SerializeField] public ArticulationBody elbowJoint;      // elbow joint — ForeArm
+    [SerializeField] public Transform magnet;                 // end obj with magnet — Hand
 
     [Header("Environment Objects")]
-    [SerializeField] private Rigidbody movableBox;
+    [SerializeField] public Rigidbody movableBox;
     [SerializeField] public Transform targetZoneA;            // starting zone
     [SerializeField] public Transform targetZoneB;            // goal zone
-    [SerializeField] private Transform floor;
+    [SerializeField] public Transform floor;
 
     [Header("Magnet Settings")]
     [SerializeField] private float magneticRange = 0.5f;       // distance to auto-pickup

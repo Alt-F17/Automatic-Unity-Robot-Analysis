@@ -43,7 +43,7 @@ public class ModelLoader : MonoBehaviour
         }
 
         runtimeModel = Unity.Sentis.ModelLoader.Load(onnxModel);
-        worker = WorkerFactory.CreateWorker(BackendType, runtimeModel, verboseLogs);
+        worker = WorkerFactory.CreateWorker(backend, runtimeModel);
 
         if (verboseLogs)
         {
