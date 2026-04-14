@@ -1,141 +1,102 @@
 // be sure to install the sentis package from the package manager to use this script
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using Unity.Sentis;
-using Unity.Sentis.Layers;
-using System.Runtime.CompilerServices;
-using System.ComponentModel;
-using System.Threading.Tasks.Dataflow;
 
-public class MLMManager : MonoBehaviour
+public class ModelLoader : MonoBehaviour
 {
+    private const int ObservationSize = 26;
 
     [Header("Model")]
-    public ModelAsset onnxModel;
+    [SerializeField] private ModelAsset onnxModel;
 
     [Header("Environment References")]
-    public IModel runtimeModel;
-    public RobotAgentDupe robotAgent;
-    private Worker worker;
+    [SerializeField] private RobotAgentDupe robotAgent;
 
-    private const float OBS_SIZE = 26;
+    [Header("Inference")]
+    [SerializeField] private BackendType backend = BackendType.GPUCompute;
+    [SerializeField, Min(1)] private int fixedUpdatesPerInference = 1;
+    [SerializeField] private bool verboseLogs;
 
-    void Start()
+    private readonly float[] observationBuffer = new float[ObservationSize];
+    private static readonly TensorShape InputShape = new TensorShape(1, ObservationSize);
+
+    private Model runtimeModel;
+    private IWorker worker;
+    private int fixedUpdateCounter;
+
+    public Model RuntimeModel => runtimeModel;
+
+    private void Start()
     {
-        DontDestroyOnLoad(gameObject);
-        if (onnxModel != null)
-        {   
-            runtimeModel = onnxModel.LoadModel();
-            worker =  new Worker(runtimeModel, BackendType.GPUComplete);
-            Debug.Log("Model loaded successfully in Awake.");
-        }
-        else
+        if (onnxModel == null)
         {
-            Debug.LogError("ONNX model asset is not assigned in the inspector.");
+            Debug.LogError("ModelLoader: ONNX model asset is not assigned.");
+            enabled = false;
             return;
+        }
+
+        if (robotAgent == null)
+        {
+            Debug.LogError("ModelLoader: RobotAgentDupe reference is not assigned.");
+            enabled = false;
+            return;
+        }
+
+        runtimeModel = Unity.Sentis.ModelLoader.Load(onnxModel);
+        worker = WorkerFactory.CreateWorker(BackendType, runtimeModel, verboseLogs);
+
+        if (verboseLogs)
+        {
+            Debug.Log($"ModelLoader: model loaded with backend {backend}.");
         }
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
+        if (worker == null || robotAgent == null)
+        {
+            return;
+        }
+
+        fixedUpdateCounter++;
+        if (fixedUpdateCounter < fixedUpdatesPerInference)
+        {
+            return;
+        }
+
+        fixedUpdateCounter = 0;
         RunModel();
     }
 
-    void RunModel()
-    {   
-        float obs[] = CollectObservations();
-
-        // Convert to tensor
-        using var inputTensor = new TensorFloat(new TensorShape(1, OBS_SIZE), obs);
-
-        worker.Schedule(inputTensor);
-
-        using TensorFloat output = (worker.PeekOutput() as TensorFloat).ReadbackAndClone();
-
-        float baseControl = Mathf.Clamp(output[0, 0], -1f, 1f);
-        float shoulderControl = Mathf.Clamp(output[0, 1], -1f, 1f);
-        float elbowControl = Mathf.Clamp(output[0, 2], -1f, 1f);
-
-        robot.ApplyJointAction(baseControl, shoulderControl, elbowControl);
-
-    }
-
-
-    float[] CollectObservations()
+    private void RunModel()
     {
-        List<float> obs = new List<float>(OBS_SIZE);
-
-        Transform agentTransform = robotAgent.transform;
-        Transform magnet = robotAgent.Magnet;
-        Rigidbody box = robotAgent.MovableBox;
-        Transform floor = robotAgent.Floor;
-        Transform targetZoneB = robotAgent.TargetZoneB;
-
-        Vector3 boxPos = movableBox != null ? movableBox.position : boxStartPosition;
-        Vector3 boxVel = movableBox != null ? movableBox.GetComponent<Rigidbody>().velocity : Vector3.zero;
-        Vector3 targetZoneBPos = targetZoneB != null ? targetZoneB.position : targetInitialPosition;
-        float localFloorY = floor != null ? floor.position.y : transform.position.y;
-
-        AddVector3(obs, agentTransform.InverseTransformPoint(magnet.position));
-        AddVector3(obs, agentTransform.InverseTransformPoint(boxPos));
-        AddVector3(obs, agentTransform.InverseTransformPoint(targetZoneBPos));
-
-        Vector3 boxPosXZ = new Vector3(boxPos.x, 0f, boxPos.z);
-        Vector3 targetZoneBPosXZ = new Vector3(targetZoneBPos.x, 0f, targetZoneBPos.z);
-        obs.Add(Vector3.Distance(boxPosXZ, targetZoneBPosXZ));
-
-        obs.Add(robotAgent.GetNormalizedAngle(robotAgent.baseJoint));
-        obs.Add(robotAgent.GetNormalizedAngle(robotAgent.shoulderJoint));
-        obs.Add(robotAgent.GetNormalizedAngle(robotAgent.elbowJoint));
-        obs.Add(robotAgent.GetJointVelocity(robotAgent.baseJoint));
-        obs.Add(robotAgent.GetJointVelocity(robotAgent.shoulderJoint));
-        obs.Add(robotAgent.GetJointVelocity(robotAgent.elbowJoint));
-
-        AddVector3(obs, agentTransform.InverseTransformPoint(boxVel));
-        AddVector3(obs, agentTransform.InverseTransformPoint(magnet.GetComponent<Rigidbody>().velocity));
-
-        obs.Add(robotAgent.IsBoxAttached ? 1f : 0f);                              
-        obs.Add(distToBox < 0.5f ? 1f : 0f);                                       
-        obs.Add(Vector3.Distance(boxPos, targetPos) < 0.5f ? 1f : 0f);           
-        obs.Add(0f);                                                               
-        obs.Add(boxPos.y - floorY);                                                 
-        obs.Add(0f);                                                                
-        obs.Add(1f);
-
-        // check if the observation count matches the number of nodes passed
-
-        if (obs.Count != OBS_SIZE)
+        if (!robotAgent.TryFillObservationBuffer(observationBuffer))
         {
-            Debug.LogError($"Observation count {obs.Count} does not match expected size {OBS_SIZE}.");
+            return;
         }
 
-        return obs.ToArray();
+        using var inputTensor = new TensorFloat(InputShape, observationBuffer);
+        worker.Execute(inputTensor);
+
+        using var outputTensor = worker.PeekOutput() as TensorFloat;
+        if (outputTensor == null)
+        {
+            Debug.LogError("ModelLoader: model output tensor was null.");
+            return;
+        }
+
+        outputTensor.MakeReadable();
+
+        float baseControl = Mathf.Clamp(outputTensor[0], -1f, 1f);
+        float shoulderControl = Mathf.Clamp(outputTensor[1], -1f, 1f);
+        float elbowControl = Mathf.Clamp(outputTensor[2], -1f, 1f);
+
+        robotAgent.ApplyActionsInference(baseControl, shoulderControl, elbowControl);
     }
 
-    static void AddVector3(List<float> list, Vector3 vec)
-    {
-        list.Add(vec.x);
-        list.Add(vec.y);
-        list.Add(vec.z);
-        
-    }
-
-    void Destroy()
+    private void OnDestroy()
     {
         worker?.Dispose();
-    }
-    public IModel GetModel()
-    {
-        return runtimeModel;
-    }
-    void applyAction(Tensor output)
-    {
-        float baseControl = output[0];
-        float shoulderControl = output[1];
-        float elbowControl = output[2];
-
-        ApplyJointTorqueRaw(baseRotation, baseControl);
-        ApplyJointTorqueRaw(shoulderJoint, shoulderControl);
-        ApplyJointTorqueRaw(elbowJoint, elbowControl);
+        worker = null;
     }
 }
