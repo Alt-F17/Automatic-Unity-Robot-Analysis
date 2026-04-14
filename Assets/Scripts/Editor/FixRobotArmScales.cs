@@ -7,8 +7,8 @@ using System.Collections.Generic;
 /// moves meshes into "_Visual" children so they keep their appearance,
 /// resizes colliders to match, and preserves all world positions.
 /// 
-/// Run via  Tools ▸ Fix Robot Arm Scales
-/// Then run Tools ▸ Dump Robot Arm Transforms  to verify.
+/// Run via  Tools -> Fix Robot Arm Scales
+/// Then run Tools -> Dump Robot Arm Transforms  to verify.
 /// </summary>
 public static class FixRobotArmScales
 {
@@ -40,7 +40,7 @@ public static class FixRobotArmScales
 
         Debug.Log($"<color=cyan>[FixScales] Recorded {snaps.Count} transforms.</color>");
 
-        // ── 2. For AB objects that also carry a mesh, split mesh → child ──
+        // ── 2. For AB objects that also carry a mesh, split mesh -> child ──
         var visualChildren = new List<(Transform abObj, Vector3 meshLossyScale)>();
         SplitMeshesFromAB(robotArm, snaps, visualChildren);
 
@@ -61,7 +61,7 @@ public static class FixRobotArmScales
             if (vis != null)
             {
                 vis.localScale = meshScale;
-                Debug.Log($"  {vis.name} scale → ({meshScale.x:F4}, {meshScale.y:F4}, {meshScale.z:F4})");
+                Debug.Log($"  {vis.name} scale -> ({meshScale.x:F4}, {meshScale.y:F4}, {meshScale.z:F4})");
             }
         }
 
@@ -171,7 +171,7 @@ public static class FixRobotArmScales
         {
             Vector3 oldLossy = snaps[t].lossyScale;
             t.localScale = oldLossy;
-            Debug.Log($"  {t.name} localScale → ({oldLossy.x:F4}, {oldLossy.y:F4}, {oldLossy.z:F4})");
+            Debug.Log($"  {t.name} localScale -> ({oldLossy.x:F4}, {oldLossy.y:F4}, {oldLossy.z:F4})");
         }
 
         for (int i = 0; i < t.childCount; i++)
@@ -184,13 +184,13 @@ public static class FixRobotArmScales
         {
             Vector3 ls = snaps[t].lossyScale; // old lossy scale
 
-            // BoxCollider: world size = size * lossyScale → new size = old size * old lossy
+            // BoxCollider: world size = size * lossyScale -> new size = old size * old lossy
             BoxCollider box = t.GetComponent<BoxCollider>();
             if (box != null)
             {
                 box.size = Vector3.Scale(box.size, ls);
                 box.center = Vector3.Scale(box.center, ls);
-                Debug.Log($"  {t.name} BoxCollider resized → size {box.size}");
+                Debug.Log($"  {t.name} BoxCollider resized -> size {box.size}");
             }
 
             // CapsuleCollider: direction-dependent scaling
@@ -207,7 +207,7 @@ public static class FixRobotArmScales
                 cap.height *= heightScale;
                 cap.radius *= radiusScale;
                 cap.center = Vector3.Scale(cap.center, ls);
-                Debug.Log($"  {t.name} CapsuleCollider resized → r={cap.radius:F3}, h={cap.height:F3}");
+                Debug.Log($"  {t.name} CapsuleCollider resized -> r={cap.radius:F3}, h={cap.height:F3}");
             }
 
             // SphereCollider: uniform max scale
@@ -217,7 +217,7 @@ public static class FixRobotArmScales
                 float maxScale = Mathf.Max(ls.x, Mathf.Max(ls.y, ls.z));
                 sph.radius *= maxScale;
                 sph.center = Vector3.Scale(sph.center, ls);
-                Debug.Log($"  {t.name} SphereCollider resized → r={sph.radius:F3}");
+                Debug.Log($"  {t.name} SphereCollider resized -> r={sph.radius:F3}");
             }
         }
 

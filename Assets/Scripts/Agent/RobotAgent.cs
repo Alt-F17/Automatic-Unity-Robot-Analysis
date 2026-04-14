@@ -9,11 +9,11 @@ using Unity.MLAgents.Sensors;
 public class RobotAgent : Agent
 {
     [Header("Robot Joint Components")]
-    [SerializeField] private ArticulationBody rootBody;        // root ArticulationBody (Fixed) — Base
-    [SerializeField] private ArticulationBody baseRotation;    // rotates entire arm (Y-axis) — Body
-    [SerializeField] private ArticulationBody shoulderJoint;   // shoulder joint — UpperArm
-    [SerializeField] private ArticulationBody elbowJoint;      // elbow joint — ForeArm
-    [SerializeField] private Transform magnet;                 // end obj with magnet — Hand
+    [SerializeField] private ArticulationBody rootBody;        // root ArticulationBody (Fixed): Base
+    [SerializeField] private ArticulationBody baseRotation;    // rotates entire arm (Y-axis): Body
+    [SerializeField] private ArticulationBody shoulderJoint;   // shoulder joint: UpperArm
+    [SerializeField] private ArticulationBody elbowJoint;      // elbow joint: ForeArm
+    [SerializeField] private Transform magnet;                 // end obj with magnet: Hand
 
     [Header("Environment Objects")]
     [SerializeField] private Rigidbody movableBox;
@@ -23,7 +23,7 @@ public class RobotAgent : Agent
 
     [Header("Magnet Settings")]
     [SerializeField] private float magneticRange = 0.5f;       // distance to auto-pickup
-    // magneticStrength removed — no longer using breakable FixedJoint; box attaches via kinematic parenting
+    // magneticStrength removed, no longer using breakable FixedJoint; box attaches via kinematic parenting
     [SerializeField] private bool visualizeMagnetRange = true;  // hope this helps you Seb
 
     [Header("Training Parameters")]
@@ -68,7 +68,7 @@ public class RobotAgent : Agent
 
     // magnetic pickup system
     private bool isBoxAttached = false;
-    // No longer using FixedJoint — kinematic parenting avoids AB solver conflicts and break-force issues
+    // No longer using FixedJoint, kinematic parenting avoids AB solver conflicts and break-force issues
     private bool boxParented = false;
     private Renderer boxRenderer;
     private Color boxDefaultColor;
@@ -98,7 +98,7 @@ public class RobotAgent : Agent
     private Vector3 previousMagnetPosition;
     private Vector3 magnetVelocity;
 
-    // Physics layer indices — must match ProjectSettings/TagManager.asset
+    // Physics layer indices, must match ProjectSettings/TagManager.asset
     private const int LayerRobotPart   = 8;  // "RobotPart"
     private const int LayerTrainingBox = 9;  // "TrainingBox"
 
@@ -201,7 +201,8 @@ public class RobotAgent : Agent
             DetachBox();
         }
 
-        // Increased success reward to 60f to make it the ultimate priority
+        // Increased success reward to 60f to make it the ultimate priority 
+        // (prevents cheating by stalling near the target with small incremental rewards)
         float baseReward = 60f;
 
         if (usePowerBudget)
@@ -320,7 +321,7 @@ public class RobotAgent : Agent
         // position data
         sensor.AddObservation(transform.InverseTransformPoint(magnet.position));
         sensor.AddObservation(transform.InverseTransformPoint(boxPos));
-        sensor.AddObservation(transform.InverseTransformPoint(targetPosition));
+        sensor.AddObservation(transform.InverseTransformPoint(targetPosition)); // god why is C# so wordy
 
         // distance data
         float distanceToBox = Vector3.Distance(magnet.position, boxPos);
@@ -367,6 +368,7 @@ public class RobotAgent : Agent
     public override void OnActionReceived(ActionBuffers actions)
     {
         if (episodeEnding) return; // Prevent brain from overriding success animation
+        // my brain needs overriding for heaven's sake
 
         float baseControl = Mathf.Clamp(actions.ContinuousActions[0], -1f, 1f);
         float shoulderControl = Mathf.Clamp(actions.ContinuousActions[1], -1f, 1f);
@@ -448,7 +450,7 @@ public class RobotAgent : Agent
     {
         if (joint == null || childBody == null) return 0f;
 
-        // F = m * g
+        // F = m * (g=9.81)
         // We include the payload mass if the box is attached to the hand!
         float totalMass = childBody.mass;
         if (isBoxAttached && movableBox != null)
@@ -593,7 +595,7 @@ public class RobotAgent : Agent
             }
         }
 
-        // energy penalty - use INCREMENTAL energy, not cumulative
+        // energy penalty: use INCREMENTAL energy, not cumulative
         AddReward(-0.005f * energyThisStep * rewardMultiplier);
         AddReward(-0.001f * rewardMultiplier);  // time penalty: Increased to heavily discourage stalling
 
@@ -619,7 +621,7 @@ public class RobotAgent : Agent
             }
             // EXPLOIT FIX: Removed the positive continuous reward for good posture. 
             // In RL, you should only punish bad form, not infinitely reward "not doing the bad form".
-            // Otherwise the agent stalls to harvest points!
+            // Otherwise the agent stalls to harvest points! Mean juker cheater
         }
     }
 
@@ -643,7 +645,7 @@ public class RobotAgent : Agent
             float realHorizontalDistance = Vector3.Distance(boxPosXZ, targetPosXZ);
             distanceToTarget = realHorizontalDistance;
 
-            // Auto-detach when box (carried) reaches zone B — let it land into the trigger
+            // Auto-detach when box (carried) reaches zone B, let it land into the trigger
             // extremely tight 0.1m threshold to force dead-center placement before dropping
             if (realHorizontalDistance < 0.1f)
             {
@@ -659,7 +661,7 @@ public class RobotAgent : Agent
         // get local floor height for this training area
         float floorY = floor != null ? floor.position.y : transform.position.y;
         
-        // magnet hit the floor — should never happen; big penalty + reset
+        // magnet hit the floor, this should never happen; big penalty + reset
         if (magnet != null && magnet.position.y < floorY + 0.3f)
         {
             AddReward(-10f * rewardMultiplier);
@@ -722,7 +724,7 @@ public class RobotAgent : Agent
             return;
         }
 
-        // magnet went out of bounds - use LOCAL position relative to training area
+        // magnet went out of bounds: use LOCAL position relative to training area
         Vector3 localMagnetPos = magnet.position - transform.position;
         if (magnet.position.y < floorY - 2f || localMagnetPos.magnitude > 20f)
         {
@@ -887,7 +889,7 @@ public class RobotAgent : Agent
     {
         if (joint == null) return 0f;
         if (joint.jointPosition.dofCount == 0) return 0f;
-        // use actual joint position, NOT drive target — the target is what the motor
+        // use actual joint position, NOT drive target, the target is what the motor
         // is trying to reach, but actual angle can differ due to inertia/load
         return joint.jointPosition[0] * Mathf.Rad2Deg;
     }
@@ -1189,7 +1191,7 @@ public class MagnetTrigger : MonoBehaviour
 
     // also handle OnTriggerStay: if the box is teleported INTO the trigger
     // (e.g., at episode start), OnTriggerEnter won't fire because there's no
-    // "enter" event — the box was placed inside. This catches that edge case.
+    // "enter" event, the box was placed inside. This catches that edge case.
     void OnTriggerStay(Collider other)
     {
         if (agent != null)

@@ -18,11 +18,11 @@ public class PerformanceTracker : MonoBehaviour
     private List<RobotAgent> allRobots;
     private Dictionary<RobotAgent, RobotPerformance> performanceData;
     
-    // Current best performer
+    // current best performer
     private RobotAgent currentBestRobot;
     private float lastUpdateTime;
     
-    // Singleton
+    // singleton
     public static PerformanceTracker Instance { get; private set; }
     
     void Awake()
@@ -194,7 +194,7 @@ public class PerformanceTracker : MonoBehaviour
             score = CalculatePerformanceScore(performanceData[robot]);
         }
         
-        // visual indicator on the best robot
+        // visual indicator on the best robot // note: never really worked, but no need 
         Transform magnet = currentBestRobot.transform.Find("BaseRotation/Shoulder/ShoulderJoint/Forearm/ElbowJoint/Magnet");
         if (magnet != null)
         {

@@ -4,11 +4,11 @@ using UnityEditor;
 /// <summary>
 /// Incrementally increases UpperArm and Forearm segment lengths.
 /// Adjusts: local positions, visual scales, elbow/magnet positions, colliders.
-/// Run via  Tools ▸ Extend Arm Segments
+/// Run via  Tools > Extend Arm Segments
+/// Was EXTREMELY useful for quickly testing different arm lengths and debugging annoying reach issues
 /// </summary>
 public static class ExtendArmSegments
 {
-    // === TWEAK THESE TO ADJUST LENGTH ===
     // Negative = trim. Set back to 0 after applying to avoid double-application.
     // Last applied: -0.2 trim on both. Current: Forearm=2.7, Magnet=1.8
     static float upperArmExtension = 0.0f;  // added to UpperArm segment (Forearm localPos.y)

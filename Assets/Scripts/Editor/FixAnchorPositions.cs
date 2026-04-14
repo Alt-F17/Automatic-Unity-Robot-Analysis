@@ -2,11 +2,11 @@ using UnityEngine;
 using UnityEditor;
 
 /// <summary>
-/// Snaps ArticulationBody anchor positions to the visual joint sphere world positions.
-/// - UpperArm AB: anchors → ShoulderJoint sphere position
-/// - Forearm   AB: anchors → ElbowJoint  sphere position
+/// Snaps ArticulationBody anchor positions to the visual joint sphere world positions:
+/// - UpperArm AB: anchors -> ShoulderJoint sphere position
+/// - Forearm AB: anchors -> ElbowJoint  sphere position
 ///
-/// Run via  Tools ▸ Fix Anchor Positions
+/// Run via  Tools > Fix Anchor Positions
 /// </summary>
 public static class FixAnchorPositions
 {
@@ -37,28 +37,28 @@ public static class FixAnchorPositions
         if (upperArmAB == null) { Debug.LogError("[FixAnchors] UpperArm has no ArticulationBody!"); PrefabUtility.UnloadPrefabContents(root); return; }
         if (forearmAB  == null) { Debug.LogError("[FixAnchors] Forearm has no ArticulationBody!");  PrefabUtility.UnloadPrefabContents(root); return; }
 
-        // ── UpperArm anchors → ShoulderJoint position ──
+        // ── UpperArm anchors -> ShoulderJoint position ──
         Vector3 shoulderWorldPos = shoulderJoint.position;
 
         Vector3 upperArmParentAnchor = body.InverseTransformPoint(shoulderWorldPos);      // in Body's local space
         Vector3 upperArmChildAnchor  = upperArm.InverseTransformPoint(shoulderWorldPos);  // in UpperArm's local space
 
         Debug.Log($"[FixAnchors] ShoulderJoint world pos: {shoulderWorldPos}");
-        Debug.Log($"[FixAnchors] UpperArm parentAnchor (was {upperArmAB.parentAnchorPosition}) → {upperArmParentAnchor}");
-        Debug.Log($"[FixAnchors] UpperArm anchorPos    (was {upperArmAB.anchorPosition})       → {upperArmChildAnchor}");
+        Debug.Log($"[FixAnchors] UpperArm parentAnchor (was {upperArmAB.parentAnchorPosition}) -> {upperArmParentAnchor}");
+        Debug.Log($"[FixAnchors] UpperArm anchorPos    (was {upperArmAB.anchorPosition})       -> {upperArmChildAnchor}");
 
         upperArmAB.parentAnchorPosition = upperArmParentAnchor;
         upperArmAB.anchorPosition       = upperArmChildAnchor;
 
-        // ── Forearm anchors → ElbowJoint position ──
+        // ── Forearm anchors -> ElbowJoint position ──
         Vector3 elbowWorldPos = elbowJoint.position;
 
         Vector3 forearmParentAnchor = upperArm.InverseTransformPoint(elbowWorldPos);  // in UpperArm's local space
         Vector3 forearmChildAnchor  = forearm.InverseTransformPoint(elbowWorldPos);   // in Forearm's local space
 
         Debug.Log($"[FixAnchors] ElbowJoint world pos: {elbowWorldPos}");
-        Debug.Log($"[FixAnchors] Forearm parentAnchor (was {forearmAB.parentAnchorPosition}) → {forearmParentAnchor}");
-        Debug.Log($"[FixAnchors] Forearm anchorPos    (was {forearmAB.anchorPosition})       → {forearmChildAnchor}");
+        Debug.Log($"[FixAnchors] Forearm parentAnchor (was {forearmAB.parentAnchorPosition}) -> {forearmParentAnchor}");
+        Debug.Log($"[FixAnchors] Forearm anchorPos    (was {forearmAB.anchorPosition})       -> {forearmChildAnchor}");
 
         forearmAB.parentAnchorPosition = forearmParentAnchor;
         forearmAB.anchorPosition       = forearmChildAnchor;

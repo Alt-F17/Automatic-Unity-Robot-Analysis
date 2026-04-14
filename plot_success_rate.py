@@ -51,7 +51,7 @@ def main():
 
     plt.figure(figsize=(12, 7))
 
-    # --- MODE: BEST PERFORMER ---
+    # ── MODE: BEST PERFORMER ──
     if "Best Performer" in mode_choice:
         best_file = None
         best_rate = -1.0
@@ -83,7 +83,7 @@ def main():
             print("No valid data found in those records.")
             return
 
-    # --- MODE: AVERAGE FOR ALL ROBOTS ---
+    # ── MODE: AVERAGE FOR ALL ROBOTS ──
     elif "Average for all robots" in mode_choice:
         all_dfs = []
         for f in session_files:

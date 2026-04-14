@@ -1,5 +1,10 @@
 using UnityEngine;
 
+/// <summary>
+/// Soooo... Pop, pop, pop, pop... POP! x100
+/// This script spawns a grid of training areas at the start of the scene.
+/// </summary>
+
 public class TrainingAreaSpawner : MonoBehaviour
 {
     [Header("Spawning Settings")]

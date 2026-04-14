@@ -1,5 +1,10 @@
 using UnityEngine;
 
+/// <summary>
+/// literally the simplest possible flycam controller: arrow keys to move, right mouse to look.
+/// like... you can't mess this up. just put it on the main camera and you're good to go.
+/// </summary>
+
 public class SimpleCameraController : MonoBehaviour
 {
     [SerializeField] private float moveSpeed = 20f;

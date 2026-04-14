@@ -22,7 +22,7 @@ behaviors:
       extrinsic:
         strength: 1.0
         gamma: 0.99
-      # Curiosity disabled - counterproductive for well-defined tasks
+      # Curiosity disabled : counterproductive for well-defined tasks
       # curiosity:
       #   strength: 0.01
       #   gamma: 0.99

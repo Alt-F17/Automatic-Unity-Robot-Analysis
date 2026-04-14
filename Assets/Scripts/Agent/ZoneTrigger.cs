@@ -49,7 +49,8 @@ public class ZoneTrigger : MonoBehaviour
         if (other.attachedRigidbody == expectedBox)
         {
             // The box's center must be extremely close (0.1m) to the target center
-            float distance = Vector3.Distance(new Vector3(other.transform.position.x, 0, other.transform.position.z), new Vector3(transform.position.x, 0, transform.position.z));
+            float distance = Vector3.Distance(new Vector3(other.transform.position.x, 0, other.transform.position.z), 
+                                              new Vector3(transform.position.x, 0, transform.position.z));
             if (distance < 0.15f)
             {
                 onBoxLanded.Invoke();
