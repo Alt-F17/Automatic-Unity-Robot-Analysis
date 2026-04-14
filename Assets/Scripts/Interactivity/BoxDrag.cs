@@ -3,57 +3,77 @@ using UnityEngine.EventSystems;
 using TMPro;
 
 [RequireComponent(typeof(BoxCollider))]
+[RequireComponent(typeof(CanvasGroup))]
 
 // Creates the box drag interactivity for the user 
 
 public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
-    private Vector3 offset;
+    [Header("Scene References")]
+    [SerializeField] private Transform targetZoneA;
+    [SerializeField] private Transform targetZoneB;
+    [SerializeField] private RobotAgentDupe robotAgent;
+    [SerializeField] private Rigidbody movableBox;
+    [SerializeField] private ModelLoader modelLoader;
+    [SerializeField] private DragLimit dragLimit;
+
+    [Header("Flow")]
+    [SerializeField] private bool disableControllersUntilPlacement = true;
+
     private Camera mainCamera;
     private CanvasGroup canvasGroup;
-    private float mZcoord;
-    private float distance;
+    private Renderer targetZoneBRenderer;
+    private float pointerDepth;
     private Vector3 worldOffset;
     private Vector3 boxStartPosition;
-    private Vector3 targetInitialPosition;
-
-    public Transform targetZoneA;
-    public Transform targetZoneB;
-    public Agent robotAgent;
-
-    public Rigidbody movableBox;
-    public InferenceController inference;
-    
     private bool placementValid = false;
-
-    [SerializeField] private Canvas canvas;
-
-    ModelLoader myModelLoader = new ModelLoader();
 
     private void Awake()
     {
+        if (dragLimit == null)
+        {
+            dragLimit = GetComponent<DragLimit>();
+        }
+
         canvasGroup = GetComponent<CanvasGroup>();
-        // position of square where the box starts
-        boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
-        targetInitialPosition = targetZoneB.position + Vector3.up * 0.5f;
-        robotAgent.enabled = false;
-        inference.enabled = false;
+        targetZoneBRenderer = targetZoneB != null ? targetZoneB.GetComponent<Renderer>() : null;
+
+        if (targetZoneA != null)
+        {
+            boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
+        }
+
+        if (disableControllersUntilPlacement)
+        {
+            if (robotAgent != null) robotAgent.enabled = false;
+            if (modelLoader != null) modelLoader.enabled = false;
+        }
+
+        if (dragLimit != null)
+        {
+            dragLimit.ValidatePlacement();
+        }
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
         mainCamera = Camera.main;
+        if (mainCamera == null || targetZoneB == null)
+        {
+            return;
+        }
+
         canvasGroup.alpha = 0.6f;
         canvasGroup.blocksRaycasts = false;
 
-        mZcoord = mainCamera.WorldToScreenPoint(targetZoneB.transform.position).z;
-        worldOffset = targetZoneB.transform.position - GetMouseWorldPos();
+        pointerDepth = mainCamera.WorldToScreenPoint(targetZoneB.position).z;
+        worldOffset = targetZoneB.position - GetMouseWorldPos();
     }
 
     private Vector3 GetMouseWorldPos()
     {
         Vector3 mousePoint = Input.mousePosition;
-        mousePoint.z = mZcoord;
+        mousePoint.z = pointerDepth;
         return mainCamera.ScreenToWorldPoint(mousePoint);
     }
 
@@ -63,8 +83,8 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
         canvasGroup.blocksRaycasts = true;
 
         // reset the episode when the box is dropped, whether in the target zone or not, to allow for a new attempt
-        robotAgent.enabled = true;
-        inference.enabled = true;
+        if (robotAgent != null) robotAgent.enabled = true;
+        if (modelLoader != null) modelLoader.enabled = true;
 
         if(!placementValid)
         {
@@ -72,32 +92,54 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
             return;
         }
 
-        robotAgent.SetTargetPosition(targetZoneB.position + Vector3.up * 0.5f);
-        robotAgent.EndEpisode();
+        if (robotAgent != null && targetZoneB != null)
+        {
+            robotAgent.SetTargetPosition(targetZoneB.position + Vector3.up * 0.5f);
+            robotAgent.EndEpisode();
+        }
     }
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (mainCamera == null)
+        {
+            return;
+        }
+
         Vector3 newPos = GetMouseWorldPos() + worldOffset;
+
+        if (dragLimit != null)
+        {
+            newPos = dragLimit.ClampPosition(newPos);
+        }
+
         transform.position = newPos;
+
+        if (dragLimit != null)
+        {
+            dragLimit.ValidatePlacement();
+        }
     }
 
     public void ResetBoxPosition()
     {
+        if (movableBox == null)
+        {
+            return;
+        }
+
         movableBox.position = boxStartPosition;
-        myModelLoader.Destroy();
+        movableBox.velocity = Vector3.zero;
+        movableBox.angularVelocity = Vector3.zero;
     }
 
     public void SetPlacementValid(bool isValid)
     {
-        if (isValid)
-        {   
-            placementValid = isValid;
-            targetZoneB.GetComponent<Renderer>().material.color = Color.green;
-        }
-        else
+        placementValid = isValid;
+
+        if (targetZoneBRenderer != null)
         {
-            targetZoneB.GetComponent<Renderer>().material.color = Color.red;
+            targetZoneBRenderer.material.color = isValid ? Color.green : Color.red;
         }
     }
 }
@@ -106,36 +148,92 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
 
 public class DragLimit : MonoBehaviour
 {
-    public float xMin, xMax,zMin, zMax;
-    public Transform targetZoneA;
-    public Transform targetZoneB;
-    public Agent robotAgent;
-    public float distance;
-    public Vector3 targetInitialPosition;
+    [Header("Bounds")]
+    [SerializeField] private float xMin;
+    [SerializeField] private float xMax;
+    [SerializeField] private float zMin;
+    [SerializeField] private float zMax;
 
-    public TextMeshProUGUI messageText;
-    public BoxDrag dragController;
+    [Header("References")]
+    [SerializeField] private Transform targetZoneA;
+    [SerializeField] private Transform targetZoneB;
+    [SerializeField] private TextMeshProUGUI messageText;
+    [SerializeField] private BoxDrag dragController;
 
-    public float minimumDistance = 50f;
+    [Header("Distance Rule")]
+    [SerializeField] private float minimumDistance = 50f;
 
-    private void Update()
+    // TODO: Change to radius based COLLIDERS in unity itself, create
+    // a collider that encompasses the valid area, only let the area within
+    // the collider be draggable, and REMOVE (eventually) the valid/invalid
+    // states that would reset the position. This would be more intuitive 
+    // and less frustrating for the user
+
+    private Vector3 lastValidTargetPosition;
+    private bool hasValidPosition;
+
+    private void Start()
     {
-        Vector3 pos = targetZoneB.transform.position;
-        pos.x = Mathf.Clamp(pos.x, xMin, xMax);
-        pos.z = Mathf.Clamp(pos.z, zMin, zMax);
+        if (targetZoneB != null)
+        {
+            lastValidTargetPosition = targetZoneB.position;
+            hasValidPosition = true;
+        }
+
+        ValidatePlacement();
     }
 
-    private void CheckDistanceConstraint()
+    public Vector3 ClampPosition(Vector3 position)
     {
-        distance = Vector3.Distance(targetZoneA.transform.position, targetZoneB.transform.position);
-        if(distance < minimumDistance)
+        position.x = Mathf.Clamp(position.x, xMin, xMax);
+        position.z = Mathf.Clamp(position.z, zMin, zMax);
+        return position;
+    }
+
+    public void ValidatePlacement()
+    {
+        if (targetZoneA == null || targetZoneB == null)
         {
-            messageText.text = "End position of box is too close";
-            targetZoneB.position = targetInitialPosition;
-            dragController.SetPlacementValid(false);
-        } else {
-            messageText.text = "";
-            targetInitialPosition = targetZoneB.position;
+            return;
+        }
+
+        Vector3 clampedPosition = ClampPosition(targetZoneB.position);
+        if ((clampedPosition - targetZoneB.position).sqrMagnitude > 0.0001f)
+        {
+            targetZoneB.position = clampedPosition;
+        }
+
+        float distance = Vector3.Distance(targetZoneA.position, targetZoneB.position);
+        if (distance < minimumDistance)
+        {
+            if (messageText != null)
+            {
+                messageText.text = "End position of box is too close";
+            }
+
+            if (hasValidPosition)
+            {
+                targetZoneB.position = lastValidTargetPosition;
+            }
+
+            if (dragController != null)
+            {
+                dragController.SetPlacementValid(false);
+            }
+
+            return;
+        }
+
+        if (messageText != null)
+        {
+            messageText.text = string.Empty;
+        }
+
+        lastValidTargetPosition = targetZoneB.position;
+        hasValidPosition = true;
+
+        if (dragController != null)
+        {
             dragController.SetPlacementValid(true);
         }
     }
