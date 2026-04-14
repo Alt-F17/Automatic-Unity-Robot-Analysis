@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$PAGE_TITLE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* __APP_CSS__ */
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <section class="topbar">
+    <div class="topline">
+      <div>
+        <div class="badge"><span class="badge-dot"></span>$APP_TITLE · Netron Backend Active</div>
+        <div class="title" id="model-title"></div>
+        <div class="subtitle" id="model-subtitle"></div>
+      </div>
+      <div class="status" id="backend-status">Connecting Backend</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><label>Parameters</label><div class="value" id="kpi-params">-</div></div>
+      <div class="kpi"><label>Nodes</label><div class="value" id="kpi-nodes">-</div></div>
+      <div class="kpi"><label>Edges</label><div class="value" id="kpi-edges">-</div></div>
+      <div class="kpi"><label>Tensors</label><div class="value" id="kpi-tensors">-</div></div>
+      <div class="kpi"><label>Inputs / Outputs</label><div class="value" id="kpi-io">-</div></div>
+      <div class="kpi"><label>Stages</label><div class="value" id="kpi-stages">-</div></div>
+    </div>
+  </section>
+
+  <section class="main">
+    <div class="panel">
+      <div class="section">
+        <div class="h2">Topology Signals</div>
+        <div class="metric-row"><span class="k">Producer</span><span class="v" id="m-producer"></span></div>
+        <div class="metric-row"><span class="k">Graph</span><span class="v" id="m-graph"></span></div>
+        <div class="metric-row"><span class="k">ONNX Opset / IR</span><span class="v" id="m-onnx"></span></div>
+        <div class="metric-row"><span class="k">Max Fan-In / Fan-Out</span><span class="v" id="m-fan"></span></div>
+        <div class="metric-row"><span class="k">Mean Fan-In / Fan-Out</span><span class="v" id="m-fan-mean"></span></div>
+        <div class="metric-row"><span class="k">Branch-Critical Nodes</span><span class="v" id="m-branch"></span></div>
+      </div>
+
+      <div class="section">
+        <div class="h2">Operator Distribution</div>
+        <div class="op-list" id="op-list"></div>
+      </div>
+
+      <div class="section">
+        <div class="h2">Architecture Notes</div>
+        <ul class="note-list" id="note-list"></ul>
+      </div>
+
+      <div class="section">
+        <div class="h2">Model Boundaries</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Direction</th><th>Name</th><th>DType</th><th>Shape</th></tr></thead>
+            <tbody id="io-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section">
+        <div class="right-top">
+          <div>
+            <div class="h2">Netron Surface</div>
+            <div class="small">Live backend visualization with curated telemetry on the left.</div>
+          </div>
+          <div class="quick-actions">
+            <a class="small" id="netron-link" target="_blank" rel="noopener">Open Netron Direct</a>
+            <button type="button" class="control-btn" id="netron-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+        <div class="frame-wrap" id="frame-wrap">
+          <iframe id="netron-frame" title="Netron Backend" loading="eager"></iframe>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="h2">Parameter Hotspots</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Node</th><th>Op</th><th>Stage</th><th>Params</th><th>Fan</th></tr></thead>
+            <tbody id="heavy-table"></tbody>
+          </table>
+        </div>
+        <div class="footer">Backend endpoint: <span id="backend-url"></span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const DASHBOARD = $DASHBOARD_JSON;
+/* __APP_JS__ */
+</script>
+</body>
+</html>

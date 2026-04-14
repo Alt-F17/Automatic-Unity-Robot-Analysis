@@ -5,11 +5,20 @@ import inspect
 import json
 import os
 import webbrowser
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from string import Template
 from urllib.parse import urlparse
 
-from vizzer import build_columns, extract_model
+import numpy as np
+import onnx
+from onnx import AttributeProto, TensorProto, numpy_helper
+
+
+BASE_DIR = os.path.dirname(__file__)
+HTML_TEMPLATE_PATH = os.path.join(BASE_DIR, "netronizer-template.html")
+CSS_TEMPLATE_PATH = os.path.join(BASE_DIR, "netronizer-template.css")
+JS_TEMPLATE_PATH = os.path.join(BASE_DIR, "netronizer-template.js")
 
 
 def _build_parser():
@@ -36,6 +45,571 @@ def _build_parser():
         help="Start servers without auto-opening a browser tab",
     )
     return parser
+
+
+def _shape_dtype_from_type(type_proto):
+    try:
+        if not type_proto or not type_proto.HasField("tensor_type"):
+            return ["?"], "?"
+        tt = type_proto.tensor_type
+        shape = []
+        for dim in tt.shape.dim:
+            if dim.dim_value > 0:
+                shape.append(int(dim.dim_value))
+            elif dim.dim_param:
+                shape.append(dim.dim_param)
+            else:
+                shape.append("?")
+        dtype = TensorProto.DataType.Name(tt.elem_type) if tt.elem_type else "?"
+        return shape or ["?"], dtype or "?"
+    except Exception:
+        return ["?"], "?"
+
+
+def _shape_dtype_from_initializer(initializer):
+    try:
+        shape = list(initializer.dims) or ["?"]
+        dtype = TensorProto.DataType.Name(initializer.data_type) if initializer.data_type else "?"
+        return shape, dtype
+    except Exception:
+        return ["?"], "?"
+
+
+def _clip_list(values, max_items=8):
+    values = list(values)
+    if len(values) <= max_items:
+        return values
+    return values[:max_items] + [f"...(+{len(values) - max_items})"]
+
+
+def _parse_attribute(attr):
+    try:
+        if attr.type == AttributeProto.FLOAT:
+            return round(float(attr.f), 6)
+        if attr.type == AttributeProto.INT:
+            return int(attr.i)
+        if attr.type == AttributeProto.STRING:
+            return attr.s.decode("utf-8", "ignore")
+        if attr.type == AttributeProto.FLOATS:
+            return _clip_list([round(float(v), 6) for v in attr.floats])
+        if attr.type == AttributeProto.INTS:
+            return _clip_list([int(v) for v in attr.ints])
+        if attr.type == AttributeProto.STRINGS:
+            return _clip_list([v.decode("utf-8", "ignore") for v in attr.strings])
+        if attr.type == AttributeProto.TENSOR:
+            arr = numpy_helper.to_array(attr.t)
+            info = {
+                "dtype": str(arr.dtype),
+                "shape": list(arr.shape),
+                "params": int(arr.size),
+            }
+            if arr.size > 0 and np.issubdtype(arr.dtype, np.number):
+                info["min"] = round(float(np.min(arr)), 5)
+                info["max"] = round(float(np.max(arr)), 5)
+            return info
+        if attr.type == AttributeProto.GRAPH:
+            return f"<graph:{attr.g.name or 'anonymous'}>"
+        if attr.type == AttributeProto.GRAPHS:
+            return _clip_list([f"<graph:{g.name or 'anonymous'}>" for g in attr.graphs], max_items=4)
+    except Exception:
+        return "<unparsed>"
+    return "<unsupported>"
+
+
+def _upsert_tensor(tensors, name, shape=None, dtype=None, role=None):
+    if not name:
+        return
+    info = tensors.setdefault(name, {"name": name, "shape": ["?"], "dtype": "?", "roles": set()})
+    if shape and (info["shape"] == ["?"] or ("?" in info["shape"] and "?" not in shape)):
+        info["shape"] = list(shape)
+    if dtype and (info["dtype"] in ("", "?") and dtype not in ("", "?")):
+        info["dtype"] = dtype
+    if role:
+        info["roles"].add(role)
+
+
+def extract_model(path):
+    model = onnx.load(path)
+    graph = model.graph
+
+    tensors = {}
+
+    inputs = []
+    for inp in graph.input:
+        shape, dtype = _shape_dtype_from_type(inp.type)
+        inputs.append({"name": inp.name, "shape": shape, "dtype": dtype})
+        _upsert_tensor(tensors, inp.name, shape, dtype, "input")
+
+    outputs = []
+    for out in graph.output:
+        shape, dtype = _shape_dtype_from_type(out.type)
+        outputs.append({"name": out.name, "shape": shape, "dtype": dtype})
+        _upsert_tensor(tensors, out.name, shape, dtype, "output")
+
+    for vi in graph.value_info:
+        shape, dtype = _shape_dtype_from_type(vi.type)
+        _upsert_tensor(tensors, vi.name, shape, dtype, "value_info")
+
+    weights = {}
+    total_params = 0
+    for init in graph.initializer:
+        init_shape, init_dtype = _shape_dtype_from_initializer(init)
+        _upsert_tensor(tensors, init.name, init_shape, init_dtype, "initializer")
+
+        try:
+            arr = numpy_helper.to_array(init)
+            params = int(arr.size)
+            total_params += params
+
+            weight_info = {
+                "shape": list(arr.shape),
+                "dtype": str(arr.dtype),
+                "params": params,
+            }
+
+            if arr.size > 0 and np.issubdtype(arr.dtype, np.number):
+                flat = arr.astype(np.float64, copy=False).flatten()
+                hist, edges = np.histogram(flat, bins=16)
+                weight_info.update(
+                    {
+                        "mean": round(float(np.mean(arr)), 5),
+                        "std": round(float(np.std(arr)), 5),
+                        "min": round(float(np.min(arr)), 5),
+                        "max": round(float(np.max(arr)), 5),
+                        "sparsity": round(float(np.mean(np.abs(arr) < 0.01)), 4),
+                        "hist": [int(x) for x in hist],
+                        "hist_edges": [round(float(x), 4) for x in edges],
+                    }
+                )
+
+            weights[init.name] = weight_info
+        except Exception:
+            weights[init.name] = {
+                "shape": init_shape,
+                "dtype": init_dtype,
+                "params": 0,
+            }
+
+    nodes = []
+    op_counts = {}
+    for i, node in enumerate(graph.node):
+        op = node.op_type or "Unknown"
+        op_counts[op] = op_counts.get(op, 0) + 1
+
+        attrs = {attr.name: _parse_attribute(attr) for attr in node.attribute}
+        weight_names = [inp_name for inp_name in node.input if inp_name in weights]
+
+        nodes.append(
+            {
+                "id": i,
+                "op": op,
+                "domain": node.domain or "",
+                "name": node.name,
+                "inputs": list(node.input),
+                "outputs": list(node.output),
+                "attrs": attrs,
+                "weight_names": weight_names,
+                "metrics": {},
+                "io": {"inputs": [], "outputs": []},
+            }
+        )
+
+    tensor_producer = {}
+    tensor_consumers = {}
+    for node in nodes:
+        for out_name in node["outputs"]:
+            if out_name:
+                tensor_producer[out_name] = node["id"]
+        for inp_name in node["inputs"]:
+            if inp_name:
+                tensor_consumers.setdefault(inp_name, []).append(node["id"])
+
+    deps = {node["id"]: set() for node in nodes}
+    rev_deps = {node["id"]: set() for node in nodes}
+    edge_map = {}
+    for node in nodes:
+        nid = node["id"]
+        for inp_name in node["inputs"]:
+            src = tensor_producer.get(inp_name)
+            if src is None or src == nid:
+                continue
+            deps[nid].add(src)
+            rev_deps[src].add(nid)
+
+            key = (src, nid)
+            if key not in edge_map:
+                edge_map[key] = {"from": src, "to": nid, "count": 0, "tensors": []}
+            edge_map[key]["count"] += 1
+            if inp_name and len(edge_map[key]["tensors"]) < 4:
+                edge_map[key]["tensors"].append(inp_name)
+
+    edges = [edge_map[key] for key in sorted(edge_map)]
+
+    for node in nodes:
+        nid = node["id"]
+        weight_params = int(sum(weights[name]["params"] for name in node["weight_names"]))
+        node["metrics"] = {
+            "fanin": len(deps[nid]),
+            "fanout": len(rev_deps[nid]),
+            "input_count": len([name for name in node["inputs"] if name]),
+            "output_count": len([name for name in node["outputs"] if name]),
+            "weight_tensors": len(node["weight_names"]),
+            "weight_params": weight_params,
+            "depth_hint": 0,
+        }
+        node["io"] = {
+            "inputs": [
+                {
+                    "name": name,
+                    "shape": tensors.get(name, {}).get("shape", ["?"]),
+                    "dtype": tensors.get(name, {}).get("dtype", "?"),
+                }
+                for name in node["inputs"]
+                if name
+            ][:8],
+            "outputs": [
+                {
+                    "name": name,
+                    "shape": tensors.get(name, {}).get("shape", ["?"]),
+                    "dtype": tensors.get(name, {}).get("dtype", "?"),
+                }
+                for name in node["outputs"]
+                if name
+            ][:8],
+        }
+
+    tensor_list = []
+    for name, spec in tensors.items():
+        tensor_list.append(
+            {
+                "name": name,
+                "shape": spec.get("shape", ["?"]),
+                "dtype": spec.get("dtype", "?"),
+                "roles": sorted(spec.get("roles", [])),
+                "consumers": len(tensor_consumers.get(name, [])),
+            }
+        )
+    tensor_list.sort(key=lambda item: item["name"])
+
+    meta = {
+        "filename": os.path.basename(path),
+        "graph_name": graph.name or "unnamed_graph",
+        "ir_version": model.ir_version,
+        "opset": [opset.version for opset in model.opset_import],
+        "producer": f"{model.producer_name} {model.producer_version}".strip(),
+        "total_params": total_params,
+        "op_counts": op_counts,
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "initializer_count": len(graph.initializer),
+        "tensor_count": len(tensor_list),
+        "max_fanin": max((len(v) for v in deps.values()), default=0),
+        "max_fanout": max((len(v) for v in rev_deps.values()), default=0),
+    }
+
+    return {
+        "meta": meta,
+        "inputs": inputs,
+        "outputs": outputs,
+        "nodes": nodes,
+        "edges": edges,
+        "weights": weights,
+        "tensors": tensor_list,
+    }
+
+
+def build_columns(nodes, inputs, outputs):
+    """
+    Build a feed-forward layout with branch lanes:
+    - stage assignment by topological depth (with optional compression)
+    - aux/constant nodes pinned just before their first consumer
+    - output-ancestry lanes to keep branches visually grouped
+    - barycentric row ordering (20 passes) + local swap crossing minimization
+    - aux nodes kept in a separate bottom zone so they don't displace the main flow
+    """
+    del inputs
+
+    node_lookup = {node["id"]: node for node in nodes}
+
+    tensor_producer = {}
+    for node in nodes:
+        for out_name in node["outputs"]:
+            if out_name:
+                tensor_producer[out_name] = node["id"]
+
+    deps = {node["id"]: set() for node in nodes}
+    succ = {node["id"]: set() for node in nodes}
+    for node in nodes:
+        nid = node["id"]
+        for inp_name in node["inputs"]:
+            src = tensor_producer.get(inp_name)
+            if src is None or src == nid:
+                continue
+            deps[nid].add(src)
+            succ[src].add(nid)
+
+    indegree = {nid: len(parents) for nid, parents in deps.items()}
+    depth = {}
+    topo = []
+    queue = deque(sorted([nid for nid, degree in indegree.items() if degree == 0]))
+    while queue:
+        nid = queue.popleft()
+        topo.append(nid)
+        depth[nid] = max((depth[parent] for parent in deps[nid] if parent in depth), default=-1) + 1
+        for child in sorted(succ[nid]):
+            indegree[child] -= 1
+            if indegree[child] == 0:
+                queue.append(child)
+
+    for nid in sorted(deps):
+        if nid not in depth:
+            depth[nid] = max((depth.get(parent, 0) for parent in deps[nid]), default=0)
+            topo.append(nid)
+
+    output_names = [out.get("name") for out in outputs if isinstance(out, dict)]
+    node_branches = {nid: set() for nid in node_lookup}
+
+    for out_idx, out_name in enumerate(output_names):
+        if not out_name:
+            continue
+        root = tensor_producer.get(out_name)
+        if root is None:
+            continue
+
+        stack = [root]
+        seen = set()
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            node_branches[current].add(out_idx)
+            stack.extend(deps[current])
+
+    for _ in range(2):
+        changed = False
+        for nid in reversed(topo):
+            if node_branches[nid]:
+                continue
+            inherited = set()
+            for child in succ[nid]:
+                inherited.update(node_branches[child])
+            if inherited:
+                node_branches[nid] = inherited
+                changed = True
+        if not changed:
+            break
+
+    max_depth = max(depth.values(), default=0)
+    if max_depth <= 12:
+        stage_raw = {nid: depth[nid] for nid in depth}
+    else:
+        target_stages = max(8, min(12, int(round((len(nodes) ** 0.5) * 1.8))))
+        target_stages = max(target_stages, 2)
+        stage_raw = {}
+        for nid, d in depth.items():
+            stage_raw[nid] = int(round((d / max_depth) * (target_stages - 1)))
+
+    def is_aux_node(nid):
+        node = node_lookup[nid]
+        if node["op"] == "Constant":
+            return True
+        return (
+            node["op"] == "Identity"
+            and not deps[nid]
+            and node.get("metrics", {}).get("weight_tensors", 0) > 0
+        )
+
+    for nid in topo:
+        if is_aux_node(nid) and succ[nid]:
+            stage_raw[nid] = max(0, min(stage_raw[child] for child in succ[nid]) - 1)
+
+    used_stages = sorted(set(stage_raw.values()))
+    stage_remap = {old_stage: new_stage for new_stage, old_stage in enumerate(used_stages)}
+    col = {nid: stage_remap[stage_raw[nid]] for nid in stage_raw}
+
+    max_col = max(col.values(), default=0)
+    columns = [[] for _ in range(max_col + 1)]
+    for node in nodes:
+        columns[col[node["id"]]].append(node["id"])
+
+    op_rank_map = {
+        "Sub": 0,
+        "Div": 0,
+        "Clip": 0,
+        "Concat": 1,
+        "Conv": 2,
+        "Gemm": 2,
+        "MatMul": 2,
+        "Relu": 3,
+        "Sigmoid": 3,
+        "Tanh": 3,
+        "Mul": 4,
+        "Add": 4,
+        "Exp": 5,
+        "RandomNormalLike": 6,
+        "Identity": 7,
+        "Constant": 8,
+    }
+
+    def lane_key(nid):
+        branches = sorted(node_branches.get(nid, []))
+        if not branches:
+            return 3, 999, 0
+        if len(branches) > 1:
+            return 0, -len(branches), branches[0]
+        if is_aux_node(nid):
+            return 2, branches[0], 0
+        return 1, branches[0], 0
+
+    def op_rank(nid):
+        return op_rank_map.get(node_lookup[nid]["op"], 5)
+
+    def row_positions(cols):
+        mapping = {}
+        for column in cols:
+            for row_index, nid in enumerate(column):
+                mapping[nid] = row_index
+        return mapping
+
+    def barycenter(neighbors, positions, fallback):
+        rows = [positions[n] for n in neighbors if n in positions]
+        return sum(rows) / len(rows) if rows else fallback
+
+    def split_aux(column):
+        reg = [nid for nid in column if not is_aux_node(nid)]
+        aux = [nid for nid in column if is_aux_node(nid)]
+        return reg, aux
+
+    for ci in range(len(columns)):
+        reg, aux = split_aux(columns[ci])
+        reg.sort(
+            key=lambda nid: (
+                lane_key(nid),
+                depth.get(nid, 0),
+                op_rank(nid),
+                -node_lookup[nid].get("metrics", {}).get("fanout", 0),
+                nid,
+            )
+        )
+        aux.sort(
+            key=lambda nid: (
+                min((depth.get(c, 0) for c in succ[nid]), default=0),
+                nid,
+            )
+        )
+        columns[ci] = reg + aux
+
+    for iteration in range(20):
+        rp = row_positions(columns)
+
+        if iteration % 2 == 0:
+            for ci in range(1, len(columns)):
+                reg, aux = split_aux(columns[ci])
+                n_reg = len(reg)
+                reg.sort(
+                    key=lambda nid: (
+                        lane_key(nid),
+                        barycenter(
+                            [d for d in deps[nid] if not is_aux_node(d)],
+                            rp,
+                            rp.get(nid, 0),
+                        ),
+                        op_rank(nid),
+                        -node_lookup[nid].get("metrics", {}).get("fanout", 0),
+                        nid,
+                    )
+                )
+                aux.sort(key=lambda nid: (barycenter(succ[nid], rp, n_reg), nid))
+                columns[ci] = reg + aux
+        else:
+            for ci in range(len(columns) - 2, -1, -1):
+                reg, aux = split_aux(columns[ci])
+                n_reg = len(reg)
+                reg.sort(
+                    key=lambda nid: (
+                        lane_key(nid),
+                        barycenter(
+                            [s for s in succ[nid] if not is_aux_node(s)],
+                            rp,
+                            rp.get(nid, 0),
+                        ),
+                        op_rank(nid),
+                        node_lookup[nid].get("metrics", {}).get("fanin", 0),
+                        nid,
+                    )
+                )
+                aux.sort(key=lambda nid: (barycenter(succ[nid], rp, n_reg), nid))
+                columns[ci] = reg + aux
+
+    def crossing_count(col_a, col_b):
+        row_a = {nid: i for i, nid in enumerate(col_a)}
+        row_b = {nid: i for i, nid in enumerate(col_b)}
+        pairs = [(row_a[n], row_b[c]) for n in col_a for c in succ[n] if c in row_b]
+        count = 0
+        for i in range(len(pairs)):
+            for j in range(i + 1, len(pairs)):
+                if (pairs[i][0] - pairs[j][0]) * (pairs[i][1] - pairs[j][1]) < 0:
+                    count += 1
+        return count
+
+    def col_crossings(ci):
+        total = 0
+        if ci > 0:
+            total += crossing_count(columns[ci - 1], columns[ci])
+        if ci < len(columns) - 1:
+            total += crossing_count(columns[ci], columns[ci + 1])
+        return total
+
+    for _ in range(4):
+        improved = False
+        for ci in range(len(columns)):
+            for i in range(len(columns[ci]) - 1):
+                before = col_crossings(ci)
+                columns[ci][i], columns[ci][i + 1] = columns[ci][i + 1], columns[ci][i]
+                after = col_crossings(ci)
+                if after < before:
+                    improved = True
+                else:
+                    columns[ci][i], columns[ci][i + 1] = columns[ci][i + 1], columns[ci][i]
+        if not improved:
+            break
+
+    stage_meta = []
+    for stage_index, stage_nodes in enumerate(columns):
+        ops = {}
+        branch_union = set()
+        shared_count = 0
+        aux_count = 0
+        depths = []
+
+        for nid in stage_nodes:
+            op = node_lookup[nid]["op"]
+            ops[op] = ops.get(op, 0) + 1
+            branch_union.update(node_branches.get(nid, set()))
+            if len(node_branches.get(nid, set())) > 1:
+                shared_count += 1
+            if is_aux_node(nid):
+                aux_count += 1
+            depths.append(depth.get(nid, stage_index))
+
+        top_ops = [op for op, _ in sorted(ops.items(), key=lambda item: (-item[1], item[0]))[:3]]
+
+        stage_meta.append(
+            {
+                "stage": stage_index,
+                "count": len(stage_nodes),
+                "top_ops": top_ops,
+                "depth_min": min(depths) if depths else stage_index,
+                "depth_max": max(depths) if depths else stage_index,
+                "branches": len(branch_union),
+                "shared": shared_count,
+                "aux": aux_count,
+            }
+        )
+
+    node_branch_lists = {nid: sorted(list(branches)) for nid, branches in node_branches.items()}
+    return columns, col, stage_meta, node_branch_lists
 
 
 def _shape_text(shape):
@@ -65,7 +639,7 @@ def _shape_example_with_batch_one(shape):
         has_symbolic = True
 
     if not has_symbolic:
-      return "x".join(base_dims)
+        return "x".join(base_dims)
 
     return "x".join(example_dims)
 
@@ -239,506 +813,28 @@ def _build_dashboard(model_data, model_path, netron_url):
     }
 
 
-def _html_template():
-    return Template(
-        """<!DOCTYPE html>
-<html lang=\"en\">
-<head>
-<meta charset=\"UTF-8\">
-<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-<title>$PAGE_TITLE</title>
-<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
-<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
-<link href=\"https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap\" rel=\"stylesheet\">
-<style>
-:root {
-  --bg: #0a0a0a;
-  --panel: #0c0c0c;
-  --panel-2: #101010;
-  --line: #1b1b1b;
-  --txt: #dddddd;
-  --muted: #7a7a7a;
-  --accent: #f0e68c;
-  --accent-2: #b7b17a;
-  --danger: #c0392b;
-  --shadow: 0 8px 22px rgba(0,0,0,0.28);
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: 'Courier New', monospace;
-  color: var(--txt);
-  background:
-    radial-gradient(1200px 700px at 6% -8%, rgba(240, 230, 140, 0.06), transparent 62%),
-    radial-gradient(900px 540px at 100% 0%, rgba(192, 57, 43, 0.05), transparent 58%),
-    var(--bg);
-  min-height: 100vh;
-}
-.wrapper {
-  width: min(1560px, 95vw);
-  margin: 28px auto 36px;
-}
-.topbar {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: linear-gradient(180deg, rgba(14,14,14,0.96), rgba(10,10,10,0.98));
-  box-shadow: var(--shadow);
-  padding: 20px 24px;
-  margin-bottom: 18px;
-}
-.topline {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.badge-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: linear-gradient(120deg, var(--accent), #9f9960);
-  box-shadow: 0 0 12px rgba(240, 230, 140, 0.35);
-}
-.title {
-  font-size: clamp(18px, 2.4vw, 28px);
-  font-weight: 700;
-  letter-spacing: 0.8px;
-}
-.subtitle {
-  margin-top: 7px;
-  font-size: 11px;
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-}
-.kpi-grid {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-.kpi {
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  background: rgba(16, 16, 16, 0.9);
-  padding: 10px 12px;
-}
-.kpi label {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-.kpi .value {
-  margin-top: 6px;
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--accent);
-}
-.main {
-  display: grid;
-  grid-template-columns: 1.05fr 1.55fr;
-  gap: 14px;
-}
-.panel {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: linear-gradient(180deg, rgba(14,14,14,0.96), rgba(10,10,10,0.98));
-  box-shadow: var(--shadow);
-}
-.section {
-  padding: 16px 18px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-.section:last-child { border-bottom: none; }
-.h2 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1.3px;
-  color: var(--accent-2);
-  margin-bottom: 10px;
-}
-.metric-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px dashed rgba(255,255,255,0.08);
-  font-size: 12px;
-}
-.metric-row:last-child { border-bottom: none; }
-.metric-row .k { color: var(--muted); }
-.metric-row .v { font-family: 'IBM Plex Mono', monospace; }
-.op-list {
-  display: grid;
-  gap: 8px;
-}
-.op-item {
-  border: 1px solid rgba(240,230,140,0.18);
-  background: rgba(12,12,12,0.86);
-  border-radius: 2px;
-  padding: 8px 10px;
-}
-.op-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-.op-head .op-name { font-weight: 700; color: #d7d7d7; }
-.op-head .op-meta { color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
-.op-bar {
-  height: 6px;
-  border-radius: 1px;
-  background: rgba(240,230,140,0.13);
-  overflow: hidden;
-}
-.op-bar > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), #9a935f);
-}
-.note-list {
-  display: grid;
-  gap: 8px;
-  list-style: none;
-}
-.note-list li {
-  border: 1px solid rgba(192,57,43,0.22);
-  background: rgba(18,10,10,0.62);
-  border-radius: 2px;
-  padding: 8px 10px;
-  font-size: 12px;
-  color: #c3b8b8;
-  line-height: 1.45;
-}
-.table-wrap {
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  overflow: hidden;
-  background: rgba(10,10,10,0.86);
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-th, td {
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  text-align: left;
-}
-th {
-  color: #b7b17a;
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  background: rgba(15,15,15,0.95);
-}
-tr:last-child td { border-bottom: none; }
-.small {
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-}
-.right-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-.quick-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.status {
-  border: 1px solid rgba(240,230,140,0.45);
-  border-radius: 2px;
-  padding: 4px 10px;
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-family: 'IBM Plex Mono', monospace;
-}
-.control-btn {
-  border: 1px solid rgba(240,230,140,0.45);
-  background: rgba(18,18,18,0.95);
-  color: var(--accent);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.9px;
-  text-transform: uppercase;
-  border-radius: 2px;
-  padding: 5px 10px;
-  cursor: pointer;
-}
-.control-btn:hover {
-  background: rgba(240,230,140,0.12);
-}
-.frame-wrap {
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  overflow: hidden;
-  height: min(76vh, 980px);
-  min-height: 520px;
-  background: #090909;
-}
-iframe {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #090909;
-}
-.footer {
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 11px;
-  font-family: 'IBM Plex Mono', monospace;
-}
-@keyframes rise {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.panel, .topbar { animation: rise .35s ease-out; }
-@media (max-width: 1220px) {
-  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .main { grid-template-columns: 1fr; }
-  .frame-wrap { min-height: 420px; }
-}
-@media (max-width: 760px) {
-  .wrapper { width: 96vw; margin-top: 14px; }
-  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .topbar { padding: 14px; }
-  .section { padding: 12px; }
-}
-</style>
-</head>
-<body>
-<div class=\"wrapper\">
-  <section class=\"topbar\">
-    <div class=\"topline\">
-      <div>
-        <div class=\"badge\"><span class=\"badge-dot\"></span>$APP_TITLE · Netron Backend Active</div>
-        <div class=\"title\" id=\"model-title\"></div>
-        <div class=\"subtitle\" id=\"model-subtitle\"></div>
-      </div>
-      <div class=\"status\" id=\"backend-status\">Connecting Backend</div>
-    </div>
-    <div class=\"kpi-grid\">
-      <div class=\"kpi\"><label>Parameters</label><div class=\"value\" id=\"kpi-params\">-</div></div>
-      <div class=\"kpi\"><label>Nodes</label><div class=\"value\" id=\"kpi-nodes\">-</div></div>
-      <div class=\"kpi\"><label>Edges</label><div class=\"value\" id=\"kpi-edges\">-</div></div>
-      <div class=\"kpi\"><label>Tensors</label><div class=\"value\" id=\"kpi-tensors\">-</div></div>
-      <div class=\"kpi\"><label>Inputs / Outputs</label><div class=\"value\" id=\"kpi-io\">-</div></div>
-      <div class=\"kpi\"><label>Stages</label><div class=\"value\" id=\"kpi-stages\">-</div></div>
-    </div>
-  </section>
-
-  <section class=\"main\">
-    <div class=\"panel\">
-      <div class=\"section\">
-        <div class=\"h2\">Topology Signals</div>
-        <div class=\"metric-row\"><span class=\"k\">Producer</span><span class=\"v\" id=\"m-producer\"></span></div>
-        <div class=\"metric-row\"><span class=\"k\">Graph</span><span class=\"v\" id=\"m-graph\"></span></div>
-        <div class=\"metric-row\"><span class=\"k\">ONNX Opset / IR</span><span class=\"v\" id=\"m-onnx\"></span></div>
-        <div class=\"metric-row\"><span class=\"k\">Max Fan-In / Fan-Out</span><span class=\"v\" id=\"m-fan\"></span></div>
-        <div class=\"metric-row\"><span class=\"k\">Mean Fan-In / Fan-Out</span><span class=\"v\" id=\"m-fan-mean\"></span></div>
-        <div class=\"metric-row\"><span class=\"k\">Branch-Critical Nodes</span><span class=\"v\" id=\"m-branch\"></span></div>
-      </div>
-
-      <div class=\"section\">
-        <div class=\"h2\">Operator Distribution</div>
-        <div class=\"op-list\" id=\"op-list\"></div>
-      </div>
-
-      <div class=\"section\">
-        <div class=\"h2\">Architecture Notes</div>
-        <ul class=\"note-list\" id=\"note-list\"></ul>
-      </div>
-
-      <div class=\"section\">
-        <div class=\"h2\">Model Boundaries</div>
-        <div class=\"table-wrap\">
-          <table>
-            <thead><tr><th>Direction</th><th>Name</th><th>DType</th><th>Shape</th></tr></thead>
-            <tbody id=\"io-table\"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class=\"panel\">
-      <div class=\"section\">
-        <div class=\"right-top\">
-          <div>
-            <div class=\"h2\">Netron Surface</div>
-            <div class=\"small\">Live backend visualization with curated telemetry on the left.</div>
-          </div>
-          <div class=\"quick-actions\">
-            <a class=\"small\" id=\"netron-link\" target=\"_blank\" rel=\"noopener\">Open Netron Direct</a>
-            <button type=\"button\" class=\"control-btn\" id=\"netron-fullscreen\">Fullscreen</button>
-          </div>
-        </div>
-        <div class=\"frame-wrap\" id=\"frame-wrap\">
-          <iframe id=\"netron-frame\" title=\"Netron Backend\" loading=\"eager\"></iframe>
-        </div>
-      </div>
-
-      <div class=\"section\">
-        <div class=\"h2\">Parameter Hotspots</div>
-        <div class=\"table-wrap\">
-          <table>
-            <thead><tr><th>Node</th><th>Op</th><th>Stage</th><th>Params</th><th>Fan</th></tr></thead>
-            <tbody id=\"heavy-table\"></tbody>
-          </table>
-        </div>
-        <div class=\"footer\">Backend endpoint: <span id=\"backend-url\"></span></div>
-      </div>
-    </div>
-  </section>
-</div>
-
-<script>
-const DASHBOARD = $DASHBOARD_JSON;
-
-function fmtInt(v) {
-  return Number(v || 0).toLocaleString();
-}
-
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
-}
-
-setText('model-title', DASHBOARD.model_name);
-setText('model-subtitle', DASHBOARD.producer + ' · graph ' + DASHBOARD.graph_name + ' · opset ' + DASHBOARD.opset + ' · IR v' + DASHBOARD.ir_version);
-setText('kpi-params', fmtInt(DASHBOARD.total_params));
-setText('kpi-nodes', fmtInt(DASHBOARD.node_count));
-setText('kpi-edges', fmtInt(DASHBOARD.edge_count));
-setText('kpi-tensors', fmtInt(DASHBOARD.tensor_count));
-setText('kpi-io', (DASHBOARD.input_header || DASHBOARD.input_count) + ' / ' + DASHBOARD.output_count);
-setText('kpi-stages', fmtInt(DASHBOARD.stage_count));
-
-setText('m-producer', DASHBOARD.producer);
-setText('m-graph', DASHBOARD.graph_name);
-setText('m-onnx', DASHBOARD.opset + ' / ' + DASHBOARD.ir_version);
-setText('m-fan', DASHBOARD.max_fanin + ' / ' + DASHBOARD.max_fanout);
-setText('m-fan-mean', DASHBOARD.mean_fanin + ' / ' + DASHBOARD.mean_fanout);
-setText('m-branch', fmtInt(DASHBOARD.branchy_nodes));
-
-const opList = document.getElementById('op-list');
-(DASHBOARD.op_mix || []).slice(0, 14).forEach(function(item) {
-  const card = document.createElement('div');
-  card.className = 'op-item';
-  card.innerHTML =
-    '<div class="op-head">' +
-      '<span class="op-name">' + item.op + '</span>' +
-      '<span class="op-meta">' + fmtInt(item.count) + ' · ' + item.share + '%</span>' +
-    '</div>' +
-    '<div class="op-bar"><span style="width:' + Math.max(3, item.share) + '%"></span></div>';
-  opList.appendChild(card);
-});
-
-const noteList = document.getElementById('note-list');
-(DASHBOARD.notes || []).forEach(function(note) {
-  const li = document.createElement('li');
-  li.textContent = note;
-  noteList.appendChild(li);
-});
-
-const ioRows = document.getElementById('io-table');
-(DASHBOARD.inputs || []).forEach(function(item) {
-  const tr = document.createElement('tr');
-  tr.innerHTML = '<td>Input</td><td title="' + item.name + '">' + item.short + '</td><td>' + item.dtype + '</td><td>' + item.shape + '</td>';
-  ioRows.appendChild(tr);
-});
-(DASHBOARD.outputs || []).forEach(function(item) {
-  const tr = document.createElement('tr');
-  tr.innerHTML = '<td>Output</td><td title="' + item.name + '">' + item.short + '</td><td>' + item.dtype + '</td><td>' + item.shape + '</td>';
-  ioRows.appendChild(tr);
-});
-
-const heavyRows = document.getElementById('heavy-table');
-(DASHBOARD.heavy_nodes || []).forEach(function(item) {
-  const tr = document.createElement('tr');
-  tr.innerHTML =
-    '<td title="' + item.name + '">' + item.name + '</td>' +
-    '<td>' + item.op + '</td>' +
-    '<td>' + item.stage + '</td>' +
-    '<td>' + fmtInt(item.params) + '</td>' +
-    '<td>' + item.fanin + ' / ' + item.fanout + '</td>';
-  heavyRows.appendChild(tr);
-});
-
-const frame = document.getElementById('netron-frame');
-const frameWrap = document.getElementById('frame-wrap');
-const status = document.getElementById('backend-status');
-const direct = document.getElementById('netron-link');
-const fullscreenButton = document.getElementById('netron-fullscreen');
-frame.src = DASHBOARD.netron_url;
-direct.href = DASHBOARD.netron_url;
-direct.textContent = DASHBOARD.netron_url;
-setText('backend-url', DASHBOARD.netron_url);
-
-function syncFullscreenButton() {
-  if (!fullscreenButton) return;
-  const active = document.fullscreenElement === frameWrap;
-  fullscreenButton.textContent = active ? 'Exit Fullscreen' : 'Fullscreen';
-}
-
-if (fullscreenButton && frameWrap && typeof frameWrap.requestFullscreen === 'function') {
-  fullscreenButton.addEventListener('click', async function() {
-    try {
-      if (document.fullscreenElement === frameWrap) {
-        await document.exitFullscreen();
-      } else {
-        await frameWrap.requestFullscreen();
-      }
-    } catch (err) {
-      console.error('Fullscreen toggle failed', err);
-    }
-    syncFullscreenButton();
-  });
-  document.addEventListener('fullscreenchange', syncFullscreenButton);
-} else if (fullscreenButton) {
-  fullscreenButton.disabled = true;
-  fullscreenButton.textContent = 'Fullscreen N/A';
-}
-
-frame.addEventListener('load', function() {
-  status.textContent = 'Backend Synced';
-  status.style.color = '#f0e68c';
-  status.style.borderColor = 'rgba(240,230,140,0.5)';
-  syncFullscreenButton();
-});
-</script>
-</body>
-</html>
-"""
-    )
+def _load_text_asset(path, label):
+    try:
+        with open(path, "r", encoding="utf-8") as asset_file:
+            return asset_file.read()
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Missing {label}: {path}") from exc
 
 
 def _build_frontend_html(app_title, dashboard):
-    template = _html_template()
-    return template.safe_substitute(
-        PAGE_TITLE=html.escape(f"{app_title} - {dashboard['model_name']}") ,
+    template = Template(_load_text_asset(HTML_TEMPLATE_PATH, "HTML template"))
+    css_text = _load_text_asset(CSS_TEMPLATE_PATH, "CSS template")
+    js_text = _load_text_asset(JS_TEMPLATE_PATH, "JS template")
+
+    document = template.safe_substitute(
+        PAGE_TITLE=html.escape(f"{app_title} - {dashboard['model_name']}"),
         APP_TITLE=html.escape(app_title),
         DASHBOARD_JSON=json.dumps(dashboard, separators=(",", ":")),
     )
+
+    document = document.replace("/* __APP_CSS__ */", css_text)
+    document = document.replace("/* __APP_JS__ */", js_text)
+    return document
 
 
 def _make_handler(document, dashboard_json):
@@ -812,9 +908,13 @@ def main():
     print(f"Loading model telemetry: {model_path}")
     model_data = extract_model(model_path)
     dashboard = _build_dashboard(model_data, model_path, netron_url)
-    document = _build_frontend_html(args.title, dashboard)
-    dashboard_json = json.dumps(dashboard, separators=(",", ":"))
+    try:
+        document = _build_frontend_html(args.title, dashboard)
+    except RuntimeError as exc:
+        print(f"Error: failed to build frontend: {exc}")
+        return 1
 
+    dashboard_json = json.dumps(dashboard, separators=(",", ":"))
     kwargs = _netron_kwargs(netron.start, args.host, netron_port)
 
     print(f"Starting Netron backend on {netron_url}")
