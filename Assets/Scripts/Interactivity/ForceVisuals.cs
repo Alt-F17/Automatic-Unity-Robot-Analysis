@@ -1,37 +1,47 @@
-using System.Diagnostics;
-using System.Drawing;
-using System.Numerics;
-using System.Threading.Tasks.Dataflow;
 using UnityEngine;
 
 // draw torque vectors for angular force visualization
 
-public class ForceVisualizer : MonoBehaviour
+public class ForceVisuals : MonoBehaviour
 {
-    public RobotAgentDupe robot;
+    [SerializeField] private RobotAgentDupe robot;
+    [SerializeField] private bool drawInReleaseBuilds;
+    [SerializeField] private float torqueScale = 0.1f;
 
-    void Start()
+    private void Start()
     {   
-        if(robot == null)
+        if (robot == null)
         {
             robot = GetComponent<RobotAgentDupe>();
         }
     }
 
-    void Update(){
-        DrawTorque(robot.baseJoint, Color.red);
-        DrawTorque(robot.shoulderJoint, Color.green);
-        DrawTorque(robot.elbowJoint, Color.blue);
+    private void Update()
+    {
+        if (robot == null)
+        {
+            return;
+        }
+
+        if (!drawInReleaseBuilds && !Debug.isDebugBuild)
+        {
+            return;
+        }
+
+        DrawTorque(robot.BaseRotationJoint, Color.red);
+        DrawTorque(robot.ShoulderJoint, Color.green);
+        DrawTorque(robot.ElbowJoint, Color.blue);
     }
 
-    void DrawTorque(ArticulationBody joint, Color color)
+    private void DrawTorque(ArticulationBody joint, Color color)
     {
-        if(joint == null) return;
+        if (joint == null) return;
 
-        Vector3 torque = joint.torque;
+        // Use the agent's torque estimate and draw it along the joint local X axis.
+        float torqueMagnitude = robot.GetJointTorque(joint);
+        Vector3 torque = joint.transform.right * torqueMagnitude;
         Vector3 jointPosition = joint.transform.position;
-        float scale = 0.1f; // Adjust this scale factor as needed for better visualization
-        Debug.DrawRay(jointPosition, torque * scale, color);
+        Debug.DrawRay(jointPosition, torque * torqueScale, color);
     }
 }
 
