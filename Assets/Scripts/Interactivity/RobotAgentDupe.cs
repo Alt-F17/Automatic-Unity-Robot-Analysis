@@ -66,6 +66,11 @@ public class RobotAgentDupe : Agent
     [Header("Physics Data Collection")]
     [SerializeField] private bool collectDetailedPhysics = true;
 
+    [Header("Debug and Visualization")]
+    [SerializeField] private bool verboseRuntimeLogs;
+    [SerializeField] private bool showRuntimeHud;
+    [SerializeField] private bool showRuntimeGizmos;
+
     // magnetic pickup system
     private bool isBoxAttached = false;
     // No longer using FixedJoint — kinematic parenting avoids AB solver conflicts and break-force issues
@@ -101,6 +106,32 @@ public class RobotAgentDupe : Agent
     // Physics layer indices — must match ProjectSettings/TagManager.asset
     private const int LayerRobotPart   = 8;  // "RobotPart"
     private const int LayerTrainingBox = 9;  // "TrainingBox"
+    public const int ObservationSize = 26;
+
+    public ArticulationBody BaseRotationJoint => baseRotation;
+    public ArticulationBody ShoulderJoint => shoulderJoint;
+    public ArticulationBody ElbowJoint => elbowJoint;
+    public Transform Magnet => magnet;
+    public Rigidbody MovableBox => movableBox;
+    public Transform Floor => floor;
+    public Transform TargetZoneB => targetZoneB;
+    public bool IsBoxAttached => isBoxAttached;
+
+    private void LogVerbose(string message)
+    {
+        if (verboseRuntimeLogs)
+        {
+            Debug.Log(message);
+        }
+    }
+
+    private void LogVerboseWarning(string message)
+    {
+        if (verboseRuntimeLogs)
+        {
+            Debug.LogWarning(message);
+        }
+    }
 
     public override void Initialize() // override for data collection setup and init vars
     {
@@ -193,11 +224,11 @@ public class RobotAgentDupe : Agent
         if (episodeEnding || !isActiveAndEnabled) return;
         episodeEnding = true; // Lock immediately to prevent double-firing
 
-        Debug.Log($"<color=green>[SUCCESS] Box landed on Zone B!</color>");
+        LogVerbose("<color=green>[SUCCESS] Box landed on Zone B!</color>");
 
         if (isBoxAttached)
         {
-            Debug.Log($"<color=yellow>[AUTO-DETACH] Released at target...</color>");
+            LogVerbose("<color=yellow>[AUTO-DETACH] Released at target...</color>");
             DetachBox();
         }
 
@@ -238,10 +269,10 @@ public class RobotAgentDupe : Agent
         magnetCollider.radius = magneticRange;
         magnetCollider.isTrigger = true;
 
-        MagnetTrigger trigger = magnet.GetComponent<MagnetTrigger>();
+        MagnetTriggerDupe trigger = magnet.GetComponent<MagnetTriggerDupe>();
         if (trigger == null)
         {
-            trigger = magnet.gameObject.AddComponent<MagnetTrigger>();
+            trigger = magnet.gameObject.AddComponent<MagnetTriggerDupe>();
         }
         trigger.Initialize(this);
     }
@@ -261,7 +292,7 @@ public class RobotAgentDupe : Agent
             curriculumActive = true;
             usePowerBudget = true;
             useRandomPositions = true;
-            Debug.Log("<color=green>Curriculum Phase 2: *Power Budget* and *Random Positions* Enabled!</color>");
+            LogVerbose("<color=green>Curriculum Phase 2: *Power Budget* and *Random Positions* Enabled!</color>");
         }
 
         DetachBox();
@@ -282,7 +313,7 @@ public class RobotAgentDupe : Agent
             // use the target zones that are children of this training area (already in correct world position)
             boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
             targetPosition = targetZoneB.position + Vector3.up * 0.5f;
-            Debug.Log($"<color=cyan>[ZONES] Start={boxStartPosition}, Target={targetPosition}, Distance={Vector3.Distance(boxStartPosition, targetPosition):F2}m</color>");
+            LogVerbose($"<color=cyan>[ZONES] Start={boxStartPosition}, Target={targetPosition}, Distance={Vector3.Distance(boxStartPosition, targetPosition):F2}m</color>");
         }
 
         if (movableBox != null)
@@ -647,7 +678,7 @@ public class RobotAgentDupe : Agent
             // extremely tight 0.1m threshold to force dead-center placement before dropping
             if (realHorizontalDistance < 0.1f)
             {
-                Debug.Log($"<color=yellow>[AUTO-DETACH] Box at XZ distance {realHorizontalDistance:F3}m, releasing...</color>");
+                LogVerbose($"<color=yellow>[AUTO-DETACH] Box at XZ distance {realHorizontalDistance:F3}m, releasing...</color>");
                 DetachBox();
                 AddReward(3f * rewardMultiplier);  // Boosted intermediate reward for successful delivery
             }
@@ -692,7 +723,7 @@ public class RobotAgentDupe : Agent
                     if (hit.transform.IsChildOf(movableBox.transform)) continue;
                     
                     isClipping = true;
-                    Debug.Log($"<color=red>[CLIPPING FATAL] Box clipped deeply into {hit.name}!</color>");
+                    Debug.LogWarning($"[CLIPPING FATAL] Box clipped deeply into {hit.name}.");
                     break;
                 }
             }
@@ -758,7 +789,11 @@ public class RobotAgentDupe : Agent
         // NEW: report to performance tracker
         if (PerformanceTracker.Instance != null)
         {
-            PerformanceTracker.Instance.RecordEpisode(this, success, timeTaken, totalEnergyConsumed, accuracy);
+            RobotAgent baseAgent = GetComponent<RobotAgentDupe>();
+            if (baseAgent != null)
+            {
+                PerformanceTracker.Instance.RecordEpisode(baseAgent, success, timeTaken, totalEnergyConsumed, accuracy);
+            }
         }
     }
 
@@ -792,9 +827,8 @@ public class RobotAgentDupe : Agent
         joint.xDrive = drive;
     }
 
-    // reward-free version of ApplyJointTorque for the Model loader
-
-    public void ApplyJointTorqueRaw(float baseControl, float shoulderControl, float elbowControl)
+    // reward-free version of ApplyJointTorque for the Model Loader
+    private void ApplyJointTorqueRaw(ArticulationBody joint, float control)
     {
          if (joint == null) return;
         if (joint.jointPosition.dofCount == 0) return; // skip 0-DOF joints (i.e. magnet)
@@ -805,16 +839,21 @@ public class RobotAgentDupe : Agent
         float desiredTarget = drive.target + control * movementSpeed * Time.fixedDeltaTime;
         drive.target = Mathf.Lerp(drive.target, desiredTarget, actionSmoothing);
 
-        bool isFreeMotion = joint.twistLock == ArticulationDofLock.FreeMotion || 
-                            joint.swingYLock == ArticulationDofLock.FreeMotion || 
+        bool isFreeMotion = joint.twistLock == ArticulationDofLock.FreeMotion ||
+                            joint.swingYLock == ArticulationDofLock.FreeMotion ||
                             joint.swingZLock == ArticulationDofLock.FreeMotion;
 
         if (!isFreeMotion)
         {
             drive.target = Mathf.Clamp(drive.target, drive.lowerLimit, drive.upperLimit);
         }
-        
+
         joint.xDrive = drive;
+    }
+
+    public void ApplyJointTorqueRaw(float baseControl, float shoulderControl, float elbowControl)
+    {
+        ApplyActionsInference(baseControl, shoulderControl, elbowControl);
     }
 
     public void ApplyActionsInference(float baseControl, float shoulderControl, float elbowControl)
@@ -824,20 +863,99 @@ public class RobotAgentDupe : Agent
         ApplyJointTorqueRaw(elbowJoint, elbowControl);
     }
 
+    public void SetTargetPosition(Vector3 newTargetPosition)
+    {
+        targetPosition = newTargetPosition;
+
+        if (targetZoneB != null)
+        {
+            targetZoneB.position = new Vector3(newTargetPosition.x, targetZoneB.position.y, newTargetPosition.z);
+        }
+
+        previousDistanceToTarget = movableBox != null
+            ? Vector3.Distance(movableBox.transform.position, targetPosition)
+            : Vector3.Distance(boxStartPosition, targetPosition);
+    }
+
+    public bool TryFillObservationBuffer(float[] buffer)
+    {
+        if (buffer == null || buffer.Length < ObservationSize)
+        {
+            Debug.LogError($"RobotAgentDupe: observation buffer must be at least {ObservationSize} values.");
+            return false;
+        }
+
+        if (magnet == null)
+        {
+            Debug.LogError("RobotAgentDupe: magnet reference is missing.");
+            return false;
+        }
+
+        Vector3 boxPos = movableBox != null ? movableBox.transform.position : boxStartPosition;
+        Vector3 boxVel = movableBox != null ? movableBox.velocity : Vector3.zero;
+        float localFloorY = floor != null ? floor.position.y : transform.position.y;
+
+        Vector3 boxPosXZ = new Vector3(boxPos.x, 0f, boxPos.z);
+        Vector3 targetPosXZ = new Vector3(targetPosition.x, 0f, targetPosition.z);
+        distanceToTarget = Vector3.Distance(boxPosXZ, targetPosXZ);
+
+        float distanceToBox = Vector3.Distance(magnet.position, boxPos);
+        float safeDeltaTime = Mathf.Max(Time.fixedDeltaTime, 0.0001f);
+        magnetVelocity = (magnet.position - previousMagnetPosition) / safeDeltaTime;
+        previousMagnetPosition = magnet.position;
+
+        int index = 0;
+        index = WriteVector3(buffer, index, transform.InverseTransformPoint(magnet.position));
+        index = WriteVector3(buffer, index, transform.InverseTransformPoint(boxPos));
+        index = WriteVector3(buffer, index, transform.InverseTransformPoint(targetPosition));
+
+        buffer[index++] = distanceToBox;
+        buffer[index++] = distanceToTarget;
+        buffer[index++] = magnet.position.y - localFloorY;
+
+        buffer[index++] = GetNormalizedJointAngle(baseRotation);
+        buffer[index++] = GetNormalizedJointAngle(shoulderJoint);
+        buffer[index++] = GetNormalizedJointAngle(elbowJoint);
+        buffer[index++] = GetJointVelocity(baseRotation);
+        buffer[index++] = GetJointVelocity(shoulderJoint);
+        buffer[index++] = GetJointVelocity(elbowJoint);
+
+        index = WriteVector3(buffer, index, transform.InverseTransformDirection(boxVel));
+        index = WriteVector3(buffer, index, transform.InverseTransformDirection(magnetVelocity));
+
+        buffer[index++] = isBoxAttached ? 1f : 0f;
+        buffer[index++] = distanceToBox < magneticRange ? 1f : 0f;
+        buffer[index++] = Vector3.Distance(boxPos, targetPosition) < 0.5f ? 1f : 0f;
+        buffer[index++] = Mathf.Clamp01((Time.time - episodeStartTime) / 60f);
+        buffer[index++] = boxPos.y - localFloorY;
+        buffer[index++] = (previousDistanceToTarget - distanceToTarget) / safeDeltaTime;
+        buffer[index++] = usePowerBudget && maxPowerBudget > 0f ? currentPower / maxPowerBudget : 1f;
+
+        return index == ObservationSize;
+    }
+
+    private static int WriteVector3(float[] buffer, int index, Vector3 vector)
+    {
+        buffer[index++] = vector.x;
+        buffer[index++] = vector.y;
+        buffer[index++] = vector.z;
+        return index;
+    }
+
     private void ConfigureJointDrives()
     {
-        Debug.Log("<color=magenta>=== RobotArm Joint Configuration ===</color>");
+        LogVerbose("<color=magenta>=== RobotArm Joint Configuration ===</color>");
 
         // Diagnostic: Check if joints are assigned
-        Debug.Log($"rootBody (Base): {(rootBody != null ? "OK" : "NULL")}");
-        Debug.Log($"baseRotation (Body): {(baseRotation != null ? "OK" : "NULL")}");
-        Debug.Log($"shoulderJoint (UpperArm): {(shoulderJoint != null ? "OK" : "NULL")}");
-        Debug.Log($"elbowJoint (ForeArm): {(elbowJoint != null ? "OK" : "NULL")}");
-        Debug.Log($"magnet (Hand): {(magnet != null ? "OK" : "NULL")}");
+        LogVerbose($"rootBody (Base): {(rootBody != null ? "OK" : "NULL")}");
+        LogVerbose($"baseRotation (Body): {(baseRotation != null ? "OK" : "NULL")}");
+        LogVerbose($"shoulderJoint (UpperArm): {(shoulderJoint != null ? "OK" : "NULL")}");
+        LogVerbose($"elbowJoint (ForeArm): {(elbowJoint != null ? "OK" : "NULL")}");
+        LogVerbose($"magnet (Hand): {(magnet != null ? "OK" : "NULL")}");
         
         if (rootBody != null)
         {
-            Debug.Log($"<color=white>Root JointType: {rootBody.jointType} (should be FixedJoint or none)</color>");
+            LogVerbose($"<color=white>Root JointType: {rootBody.jointType} (should be FixedJoint or none)</color>");
         }
         
         // Calculate arm scale factor based on distance from base to magnet
@@ -846,12 +964,12 @@ public class RobotAgentDupe : Agent
             float armLength = Vector3.Distance(baseRotation.transform.position, magnet.position);
             // Reference arm length is 1 unit; scale forces by length^2 (inertia scales with distance squared)
             armScaleFactor = Mathf.Max(1f, armLength * armLength);
-            Debug.Log($"<color=cyan>RobotArm Auto-Scale: Arm length = {armLength:F2}, Scale factor = {armScaleFactor:F1}</color>");
+            LogVerbose($"<color=cyan>RobotArm Auto-Scale: Arm length = {armLength:F2}, Scale factor = {armScaleFactor:F1}</color>");
         }
         else
         {
             armScaleFactor = 64f; // Default for ~8 unit arm
-            Debug.LogWarning("Could not measure arm length, using default scale factor of 64");
+            LogVerboseWarning("Could not measure arm length, using default scale factor of 64");
         }
 
         // Apply scaled drive settings to each joint
@@ -869,11 +987,11 @@ public class RobotAgentDupe : Agent
         }
 
         // Log joint type
-        Debug.Log($"<color=white>{jointName} JointType: {joint.jointType}</color>");
+        LogVerbose($"<color=white>{jointName} JointType: {joint.jointType}</color>");
         
         if (joint.jointType == ArticulationJointType.FixedJoint)
         {
-            Debug.LogWarning($"<color=orange>{jointName} is a FIXED joint — auto-converting to RevoluteJoint.</color>");
+            LogVerboseWarning($"<color=orange>{jointName} is a FIXED joint — auto-converting to RevoluteJoint.</color>");
             joint.jointType = ArticulationJointType.RevoluteJoint;
             joint.twistLock = ArticulationDofLock.LimitedMotion;
         }
@@ -888,20 +1006,20 @@ public class RobotAgentDupe : Agent
             joint.twistLock = ArticulationDofLock.FreeMotion;
             joint.swingYLock = ArticulationDofLock.FreeMotion;
             joint.swingZLock = ArticulationDofLock.FreeMotion;
-            Debug.LogWarning($"<color=cyan>{jointName} set to FreeMotion for infinite optimal rotation.</color>");
+            LogVerboseWarning($"<color=cyan>{jointName} set to FreeMotion for infinite optimal rotation.</color>");
         }
         else
         {
             // Fix joint limits if they're zero (common mistake) or restricted to 0-360
             if (drive.lowerLimit == 0 && drive.upperLimit == 0)
             {
-                Debug.LogWarning($"<color=orange>{jointName} has [0,0] limits - setting default [-180, 180]</color>");
+                LogVerboseWarning($"<color=orange>{jointName} has [0,0] limits - setting default [-180, 180]</color>");
                 drive.lowerLimit = -180f;
                 drive.upperLimit = 180f;
             }
             else if (Mathf.Approximately(drive.lowerLimit, 0f) && Mathf.Approximately(drive.upperLimit, 360f))
             {
-                Debug.LogWarning($"<color=cyan>{jointName} has [0, 360] limits - re-centering to [-180, 180] for bidirectional optimal rotation</color>");
+                LogVerboseWarning($"<color=cyan>{jointName} has [0, 360] limits - re-centering to [-180, 180] for bidirectional optimal rotation</color>");
                 drive.lowerLimit = -180f;
                 drive.upperLimit = 180f;
             }
@@ -912,7 +1030,7 @@ public class RobotAgentDupe : Agent
         drive.forceLimit = baseForceLimit * armScaleFactor;
         joint.xDrive = drive;
 
-        Debug.Log($"<color=yellow>{jointName} Drive: Stiffness={drive.stiffness:F0}, Damping={drive.damping:F0}, ForceLimit={drive.forceLimit:F0}, Limits=[{drive.lowerLimit}, {drive.upperLimit}]</color>");
+        LogVerbose($"<color=yellow>{jointName} Drive: Stiffness={drive.stiffness:F0}, Damping={drive.damping:F0}, ForceLimit={drive.forceLimit:F0}, Limits=[{drive.lowerLimit}, {drive.upperLimit}]</color>");
     }
 
     private float GetJointAngle(ArticulationBody joint)
@@ -924,7 +1042,7 @@ public class RobotAgentDupe : Agent
         return joint.jointPosition[0] * Mathf.Rad2Deg;
     }
 
-    private float GetNormalizedJointAngle(ArticulationBody joint)
+    public float GetNormalizedJointAngle(ArticulationBody joint)
     {
         // For joints with FreeMotion, the numerical angle can spin into infinity.
         // This keeps it clamped cleanly between [-180, 180] functionally modding 360 smoothly.
@@ -941,7 +1059,7 @@ public class RobotAgentDupe : Agent
         joint.xDrive = drive;
     }
 
-    private float GetJointVelocity(ArticulationBody joint)
+    public float GetJointVelocity(ArticulationBody joint)
     {
         if (joint == null) return 0f;
         if (joint.jointVelocity.dofCount == 0) return 0f;
@@ -1148,7 +1266,7 @@ public class RobotAgentDupe : Agent
 
     void OnDrawGizmos() // visualize magnet range 
     {
-        if (!visualizeMagnetRange || magnet == null) return;
+        if (!showRuntimeGizmos || !visualizeMagnetRange || magnet == null) return;
 
         Gizmos.color = isBoxAttached ? Color.green : Color.yellow;
         Gizmos.DrawWireSphere(magnet.position, magneticRange);
@@ -1162,7 +1280,7 @@ public class RobotAgentDupe : Agent
 
     void OnGUI() // generate simple on-screen HUD for debugging and performance tracking
     {
-        if (!Application.isPlaying) return;
+        if (!showRuntimeHud || !Application.isPlaying || !Debug.isDebugBuild) return;
 
         // only display for the first agent to prevent 100x overdraw in parallel training
         if (CompletedEpisodes == 0 && totalAttempts <= 1)
@@ -1170,9 +1288,13 @@ public class RobotAgentDupe : Agent
             // heuristic: only show if this is likely the "first" agent
             // exact filtering can be done via PerformanceTracker if needed
         }
-        else if (PerformanceTracker.Instance != null && !PerformanceTracker.Instance.IsBestPerformer(this))
+        else if (PerformanceTracker.Instance != null)
         {
-            return;  // only the best performer shows the HUD
+            RobotAgent baseAgent = GetComponent<RobotAgent>();
+            if (baseAgent != null && !PerformanceTracker.Instance.IsBestPerformer(baseAgent))
+            {
+                return;  // only the best performer shows the HUD
+            }
         }
 
         GUILayout.BeginArea(new Rect(10, 10, 350, 250));
@@ -1202,11 +1324,11 @@ public class RobotAgentDupe : Agent
     }
 }
 
-public class MagnetTrigger : MonoBehaviour
+public class MagnetTriggerDupe : MonoBehaviour
 {
-    private RobotAgent agent;
+    private MonoBehaviour agent;
 
-    public void Initialize(RobotAgent parentAgent)
+    public void Initialize(MonoBehaviour parentAgent)
     {
         agent = parentAgent;
     }
@@ -1215,18 +1337,18 @@ public class MagnetTrigger : MonoBehaviour
     {
         if (agent != null)
         {
-            agent.OnMagnetTriggerEnter(other);
+            agent.SendMessage("OnMagnetTriggerEnter", other, SendMessageOptions.DontRequireReceiver);
         }
     }
 
     // also handle OnTriggerStay: if the box is teleported INTO the trigger
     // (e.g., at episode start), OnTriggerEnter won't fire because there's no
-    // "enter" event — the box was placed inside. This catches that edge case.
+    // "enter" event: the box was placed inside. This catches that edge case.
     void OnTriggerStay(Collider other)
     {
         if (agent != null)
         {
-            agent.OnMagnetTriggerEnter(other);
+            agent.SendMessage("OnMagnetTriggerEnter", other, SendMessageOptions.DontRequireReceiver);
         }
     }
 }
