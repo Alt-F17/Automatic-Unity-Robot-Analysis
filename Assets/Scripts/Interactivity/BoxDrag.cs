@@ -112,9 +112,11 @@ public class DragLimit : MonoBehaviour
     public Agent robotAgent;
     public float distance;
     public Vector3 targetInitialPosition;
+    private float radius = 100f;
 
     public TextMeshProUGUI messageText;
     public BoxDrag dragController;
+    
 
     public float minimumDistance = 50f;
 
