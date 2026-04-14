@@ -93,6 +93,7 @@ public class MLMManager : MonoBehaviour
 
         AddVector3(obs, agentTransform.InverseTransformPoint(boxVel));
         AddVector3(obs, agentTransform.InverseTransformPoint(magnet.GetComponent<Rigidbody>().velocity));
+        AddVector3(obs, Vector3.zero); // Placeholder for torque observations, to be replaced with actual torque values
 
         obs.Add(robotAgent.IsBoxAttached ? 1f : 0f);                              
         obs.Add(distToBox < 0.5f ? 1f : 0f);                                       
@@ -128,6 +129,7 @@ public class MLMManager : MonoBehaviour
     {
         return runtimeModel;
     }
+    
     void applyAction(Tensor output)
     {
         float baseControl = output[0];

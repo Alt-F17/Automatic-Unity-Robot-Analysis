@@ -10,16 +10,16 @@ public class RobotAgentDupe : Agent
 {
     [Header("Robot Joint Components")]
     [SerializeField] private ArticulationBody rootBody;        // root ArticulationBody (Fixed) — Base
-    [SerializeField] private ArticulationBody baseRotation;    // rotates entire arm (Y-axis) — Body
-    [SerializeField] private ArticulationBody shoulderJoint;   // shoulder joint — UpperArm
-    [SerializeField] private ArticulationBody elbowJoint;      // elbow joint — ForeArm
-    [SerializeField] private Transform magnet;                 // end obj with magnet — Hand
+    [SerializeField] public ArticulationBody baseRotation;    // rotates entire arm (Y-axis) — Body
+    [SerializeField] public ArticulationBody shoulderJoint;   // shoulder joint — UpperArm
+    [SerializeField] public ArticulationBody elbowJoint;      // elbow joint — ForeArm
+    [SerializeField] public Transform magnet;                 // end obj with magnet — Hand
 
     [Header("Environment Objects")]
-    [SerializeField] private Rigidbody movableBox;
+    [SerializeField] public Rigidbody movableBox;
     [SerializeField] public Transform targetZoneA;            // starting zone
     [SerializeField] public Transform targetZoneB;            // goal zone
-    [SerializeField] private Transform floor;
+    [SerializeField] public Transform floor;
 
     [Header("Magnet Settings")]
     [SerializeField] private float magneticRange = 0.5f;       // distance to auto-pickup
@@ -924,7 +924,7 @@ public class RobotAgentDupe : Agent
         return joint.jointPosition[0] * Mathf.Rad2Deg;
     }
 
-    private float GetNormalizedJointAngle(ArticulationBody joint)
+    public float GetNormalizedJointAngle(ArticulationBody joint)
     {
         // For joints with FreeMotion, the numerical angle can spin into infinity.
         // This keeps it clamped cleanly between [-180, 180] functionally modding 360 smoothly.
@@ -941,7 +941,7 @@ public class RobotAgentDupe : Agent
         joint.xDrive = drive;
     }
 
-    private float GetJointVelocity(ArticulationBody joint)
+    public float GetJointVelocity(ArticulationBody joint)
     {
         if (joint == null) return 0f;
         if (joint.jointVelocity.dofCount == 0) return 0f;
