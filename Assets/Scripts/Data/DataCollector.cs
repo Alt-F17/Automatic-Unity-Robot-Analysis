@@ -124,6 +124,11 @@ public class DataCollector : MonoBehaviour
             ExportAllData();
         }
 
+        if (maxEpisodesToRecord > 0 && episodesRecorded == maxEpisodesToRecord)
+        {
+            Debug.LogWarning($"[DataCollector] Reached configured episode milestone ({maxEpisodesToRecord}). Recording will continue.");
+        }
+
         if (episodesRecorded % 10 == 0)
         {
             Debug.Log($"[DataCollector] Recorded {episodesRecorded} episodes. Success: {GetSuccessRate():F2}%");
