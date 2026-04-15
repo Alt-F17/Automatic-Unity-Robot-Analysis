@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
+using System.Threading.Tasks.Dataflow;
+using System.Runtime.CompilerServices;
+using System.Xml.Schema;
+using Microsoft.Win32.SafeHandles;
+using System.Numerics;
 
 [RequireComponent(typeof(BoxCollider))]
 [RequireComponent(typeof(CanvasGroup))]
@@ -144,97 +149,3 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     }
 }
 
-// Setting the limits that the user can drag the target zone for the box
-
-public class DragLimit : MonoBehaviour
-{
-    [Header("Bounds")]
-    [SerializeField] private float xMin;
-    [SerializeField] private float xMax;
-    [SerializeField] private float zMin;
-    [SerializeField] private float zMax;
-
-    [Header("References")]
-    [SerializeField] private Transform targetZoneA;
-    [SerializeField] private Transform targetZoneB;
-    [SerializeField] private TextMeshProUGUI messageText;
-    [SerializeField] private BoxDrag dragController;
-
-    [Header("Distance Rule")]
-    [SerializeField] private float minimumDistance = 50f;
-
-    // TODO: Change to radius based COLLIDERS in unity itself, create
-    // a collider that encompasses the valid area, only let the area within
-    // the collider be draggable, and REMOVE (eventually) the valid/invalid
-    // states that would reset the position. This would be more intuitive 
-    // and less frustrating for the user
-
-    private Vector3 lastValidTargetPosition;
-    private bool hasValidPosition;
-
-    private void Start()
-    {
-        if (targetZoneB != null)
-        {
-            lastValidTargetPosition = targetZoneB.position;
-            hasValidPosition = true;
-        }
-
-        ValidatePlacement();
-    }
-
-    public Vector3 ClampPosition(Vector3 position)
-    {
-        position.x = Mathf.Clamp(position.x, xMin, xMax);
-        position.z = Mathf.Clamp(position.z, zMin, zMax);
-        return position;
-    }
-
-    public void ValidatePlacement()
-    {
-        if (targetZoneA == null || targetZoneB == null)
-        {
-            return;
-        }
-
-        Vector3 clampedPosition = ClampPosition(targetZoneB.position);
-        if ((clampedPosition - targetZoneB.position).sqrMagnitude > 0.0001f)
-        {
-            targetZoneB.position = clampedPosition;
-        }
-
-        float distance = Vector3.Distance(targetZoneA.position, targetZoneB.position);
-        if (distance < minimumDistance)
-        {
-            if (messageText != null)
-            {
-                messageText.text = "End position of box is too close";
-            }
-
-            if (hasValidPosition)
-            {
-                targetZoneB.position = lastValidTargetPosition;
-            }
-
-            if (dragController != null)
-            {
-                dragController.SetPlacementValid(false);
-            }
-
-            return;
-        }
-
-        if (messageText != null)
-        {
-            messageText.text = string.Empty;
-        }
-
-        lastValidTargetPosition = targetZoneB.position;
-        hasValidPosition = true;
-
-        if (dragController != null)
-        {
-            dragController.SetPlacementValid(true);
-        }
-    }
-}
