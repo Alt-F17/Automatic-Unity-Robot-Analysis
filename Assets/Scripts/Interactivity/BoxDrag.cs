@@ -1,11 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
-using System.Threading.Tasks.Dataflow;
-using System.Runtime.CompilerServices;
-using System.Xml.Schema;
-using Microsoft.Win32.SafeHandles;
-using System.Numerics;
 
 [RequireComponent(typeof(BoxCollider))]
 [RequireComponent(typeof(CanvasGroup))]
@@ -20,7 +15,7 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     [SerializeField] private RobotAgentDupe robotAgent;
     [SerializeField] private Rigidbody movableBox;
     [SerializeField] private ModelLoader modelLoader;
-    [SerializeField] private DragLimit dragLimit;
+    [SerializeField] private PlacementConstraints placementConstraints;
 
     [Header("Flow")]
     [SerializeField] private bool disableControllersUntilPlacement = true;
@@ -35,9 +30,9 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
 
     private void Awake()
     {
-        if (dragLimit == null)
+        if (placementConstraints == null)
         {
-            dragLimit = GetComponent<DragLimit>();
+            placementConstraints = GetComponent<PlacementConstraints>();
         }
 
         canvasGroup = GetComponent<CanvasGroup>();
@@ -54,9 +49,9 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
             if (modelLoader != null) modelLoader.enabled = false;
         }
 
-        if (dragLimit != null)
+        if (placementConstraints != null)
         {
-            dragLimit.ValidatePlacement();
+            placementConstraints.NotifyValidPlacement();
         }
     }
 
@@ -113,16 +108,16 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
 
         Vector3 newPos = GetMouseWorldPos() + worldOffset;
 
-        if (dragLimit != null)
+        if (placementConstraints != null)
         {
-            newPos = dragLimit.ClampPosition(newPos);
+            newPos = placementConstraints.ConstrainPosition(newPos);
         }
 
         transform.position = newPos;
 
-        if (dragLimit != null)
+        if (placementConstraints != null)
         {
-            dragLimit.ValidatePlacement();
+            placementConstraints.NotifyValidPlacement();
         }
     }
 

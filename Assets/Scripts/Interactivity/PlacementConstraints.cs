@@ -6,7 +6,9 @@ using System.Runtime.Intrinsics.X86;
 using System.Numerics;
 using System.Threading.Tasks.Dataflow;
 
-public class DragLimit : MonoBehaviour
+[RequireComponent(typeof(CapsuleCollider))]
+
+public class PlacementConstraints : MonoBehaviour
 {
     [Header("Bounds")]
     [SerializeField] private float xMin;
@@ -73,82 +75,48 @@ public class DragLimit : MonoBehaviour
     {
         if (innerBoundary != null && targetZoneA != null)
         {
-            innerBoundary.transform.position = new Vector3(targetZoneA.position.x, innerBoundary.transform.position.y, targetZoneA.position.z);
+            innerBoundary.transform.position = new Vector3(targetZoneA.position.x, 
+            innerBoundary.transform.position.y, targetZoneA.position.z);
         }
     }
 
     public Vector3 ConstrainPosition(Vector3 desiredPosition)
     {
-        Vector2 desiredXZ = new Vector2(desiredPosition.x, desiredPosition.y);
-        Vector2 outerCenterXZ = new Vector2(outerCenter.x, outerCenter.z);
-
-        Vector2 currentDistanceFromRadius = desiredXZ - outerCenterXZ;
-
-        if (currentDistanceFromRadius > outerRadius)
-        {
-            desiredXZ = outerCenterXZ + currentDistanceFromRadius.normalized * outerRadius;
-        }
-    }
-
-    public void ValidatePlacement()
-    {
-        
         if (targetZoneA == null || targetZoneB == null)
         {
             return;
         }
 
-        Vector3 clampedPosition = ClampPosition(targetZoneB.position);
-        if ((clampedPosition - targetZoneB.position).sqrMagnitude > 0.0001f)
+        Vector2 desiredXZ = new Vector2(desiredPosition.x, desiredPosition.y);
+        Vector2 outerCenterXZ = new Vector2(outerCenter.x, outerCenter.z);
+        Vector2 currentDistanceFromRadius = desiredXZ - outerCenterXZ;
+
+        // Clamp outside of the outer radius
+        if (currentDistanceFromRadius.magnitude > outerRadius)
         {
-            targetZoneB.position = clampedPosition;
+            desiredXZ = outerCenterXZ + currentDistanceFromRadius.normalized * outerRadius;
         }
 
-        // Added to create boundaries for the cylindrical object
+        // Clamp outside of the inner radius 
 
-        if (transform.position.x > radius)
-        {
-            targetZoneB.position = new Vector3(radius, transform.position.y, transform.position.z);
+        Vector2 innerCenterXZ = new Vector2(innerCenter.x, innerCenter.z);
+        Vector2 currentDistanceFromInnerRadius = desiredXZ - innerCenterXZ;
+
+        if (currentDistanceFromRadius.magnitude < innerRadius)
+        {   
+            Vector2 pushDirection = currentDistanceFromInnerRadius.magnitude > 0.0001f ? currentDistanceFromInnerRadius.normalized : Vector2.up; // Avoid division by zero
+            desiredXZ = outerCenterXZ + pushDirection * innerRadius;
         }
 
-
-        float distance = Vector3.Distance(targetZoneA.position, targetZoneB.position);
-        if (distance < minimumDistance)
-        {
-            if (messageText != null)
-            {
-                messageText.text = "End position of box is too close";
-            }
-
-            if (hasValidPosition)
-            {
-                targetZoneB.position = lastValidTargetPosition;
-            }
-
-            if (dragController != null)
-            {
-                dragController.SetPlacementValid(false);
-            }
-
-            return;
-        }
-
-        if (messageText != null)
-        {
-            messageText.text = string.Empty;
-        }
-
-        lastValidTargetPosition = targetZoneB.position;
-        hasValidPosition = true;
-
-        if (dragController != null)
-        {
-            dragController.SetPlacementValid(true);
-        }
+        return new Vector3(desiredXZ.x, desiredPosition.y, desiredXZ.y);
     }
+
+    // Check if the position is valid based on the distance rule
 
     private void GetMaxScale(TransformBlock t)
     {
         return MathF.Max(t.lossyScale.x, t.lossyScale.z);
     }
+
+    // This is called by the BoxDrag controller when the user releases the box after dragging
 }
