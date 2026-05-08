@@ -2,6 +2,12 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
 
+public enum DragZoneRole
+{
+    ZoneAStart,
+    ZoneBTarget
+}
+
 [RequireComponent(typeof(BoxCollider))]
 [RequireComponent(typeof(CanvasGroup))]
 
@@ -17,12 +23,16 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     [SerializeField] private ModelLoader modelLoader;
     [SerializeField] private PlacementConstraints placementConstraints;
 
+    [Header("Drag Role")]
+    [SerializeField] private DragZoneRole dragRole = DragZoneRole.ZoneBTarget;
+    [SerializeField] private Transform draggedZone;
+
     [Header("Flow")]
     [SerializeField] private bool disableControllersUntilPlacement = true;
 
     private Camera mainCamera;
     private CanvasGroup canvasGroup;
-    private Renderer targetZoneBRenderer;
+    private Renderer draggedZoneRenderer;
     private float pointerDepth;
     private Vector3 worldOffset;
     private Vector3 boxStartPosition;
@@ -35,8 +45,13 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
             placementConstraints = GetComponent<PlacementConstraints>();
         }
 
+        if (draggedZone == null)
+        {
+            draggedZone = transform;
+        }
+
         canvasGroup = GetComponent<CanvasGroup>();
-        targetZoneBRenderer = targetZoneB != null ? targetZoneB.GetComponent<Renderer>() : null;
+        draggedZoneRenderer = draggedZone != null ? draggedZone.GetComponent<Renderer>() : null;
 
         if (targetZoneA != null)
         {
@@ -58,7 +73,7 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     public void OnBeginDrag(PointerEventData eventData)
     {
         mainCamera = Camera.main;
-        if (mainCamera == null || targetZoneB == null)
+        if (mainCamera == null || draggedZone == null)
         {
             return;
         }
@@ -66,8 +81,8 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
         canvasGroup.alpha = 0.6f;
         canvasGroup.blocksRaycasts = false;
 
-        pointerDepth = mainCamera.WorldToScreenPoint(targetZoneB.position).z;
-        worldOffset = targetZoneB.position - GetMouseWorldPos();
+        pointerDepth = mainCamera.WorldToScreenPoint(draggedZone.position).z;
+        worldOffset = draggedZone.position - GetMouseWorldPos();
     }
 
     private Vector3 GetMouseWorldPos()
@@ -92,9 +107,18 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
             return;
         }
 
-        if (robotAgent != null && targetZoneB != null)
+        if (robotAgent != null)
         {
-            robotAgent.SetTargetPosition(targetZoneB.position + Vector3.up * 0.5f);
+            if (dragRole == DragZoneRole.ZoneBTarget && targetZoneB != null)
+            {
+                robotAgent.SetTargetPosition(targetZoneB.position + Vector3.up * 0.5f);
+            }
+
+            if (dragRole == DragZoneRole.ZoneAStart && targetZoneA != null)
+            {
+                boxStartPosition = targetZoneA.position + Vector3.up * 0.5f;
+            }
+
             robotAgent.EndEpisode();
         }
     }
@@ -113,7 +137,10 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
             newPos = placementConstraints.ConstrainPosition(newPos);
         }
 
-        transform.position = newPos;
+        if (draggedZone != null)
+        {
+            draggedZone.position = newPos;
+        }
 
         if (placementConstraints != null)
         {
@@ -137,9 +164,9 @@ public class BoxDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
     {
         placementValid = isValid;
 
-        if (targetZoneBRenderer != null)
+        if (draggedZoneRenderer != null)
         {
-            targetZoneBRenderer.material.color = isValid ? Color.green : Color.red;
+            draggedZoneRenderer.material.color = isValid ? Color.green : Color.red;
         }
     }
 }

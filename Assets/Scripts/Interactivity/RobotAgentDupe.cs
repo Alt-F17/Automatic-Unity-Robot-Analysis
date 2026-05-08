@@ -33,9 +33,9 @@ public class RobotAgentDupe : Agent
     [Header("Auto-Scaling (for large arms)")]
     [Tooltip("Automatically scale motor forces based on arm dimensions")]
     [SerializeField] private bool autoScaleForces = true;
-    [SerializeField] private float baseStiffness = 100000f;
-    [SerializeField] private float baseDamping = 10000f;
-    [SerializeField] private float baseForceLimit = 100000f;
+    [SerializeField] private float baseStiffness = 40000f;
+    [SerializeField] private float baseDamping = 4000f;
+    [SerializeField] private float baseForceLimit = 40000f;
     private float armScaleFactor = 1f;
 
     [Header("Power Budget System")]
@@ -789,7 +789,7 @@ public class RobotAgentDupe : Agent
         // NEW: report to performance tracker
         if (PerformanceTracker.Instance != null)
         {
-            RobotAgent baseAgent = GetComponent<RobotAgentDupe>();
+            RobotAgent baseAgent = GetComponent<RobotAgent>();
             if (baseAgent != null)
             {
                 PerformanceTracker.Instance.RecordEpisode(baseAgent, success, timeTaken, totalEnergyConsumed, accuracy);
