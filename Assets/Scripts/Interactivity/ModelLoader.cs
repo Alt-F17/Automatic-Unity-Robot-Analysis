@@ -78,6 +78,9 @@ public class ModelLoader : MonoBehaviour
         using var inputTensor = new TensorFloat(InputShape, observationBuffer);
         worker.Execute(inputTensor);
 
+        Debug.Log("ModelLoader: model executed.");
+        Debug.Log()
+
         using var outputTensor = worker.PeekOutput() as TensorFloat;
         if (outputTensor == null)
         {

@@ -528,6 +528,10 @@ public class RobotAgentDupe : Agent
         float shoulderGrav = GetGravitationalLoad(baseRotation, shoulderJoint);
         float elbowGrav = GetGravitationalLoad(shoulderJoint, elbowJoint);
 
+        float shoulderLocalPosition = shoulderJoint.transform.localPosition.y;
+        float elbowLocalPosition = elbowJoint.transform.localPosition.y;
+        float magnetLocalPosition = magnet.transform.localPosition.y;
+
         PhysicsSnapshot snapshot = new PhysicsSnapshot
         {
             timestamp = Time.time - episodeStartTime,
