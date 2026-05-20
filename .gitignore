@@ -19,6 +19,8 @@
 *.unitypackage
 *.unitypackage.meta
 *.app
+TrainingData/
+TrainingTransfer/
 
 # =====================================================================
 # USER-SPECIFIC IDE / EDITOR STATE - never share these

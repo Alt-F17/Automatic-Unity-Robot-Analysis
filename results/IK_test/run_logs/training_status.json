@@ -1,0 +1,65 @@
+{
+    "RobotArm": {
+        "checkpoints": [
+            {
+                "steps": 10149892,
+                "file_path": "results\\IK_test\\RobotArm\\RobotArm-10149892.onnx",
+                "reward": 86.45644283294678,
+                "creation_time": 1774366978.487856,
+                "auxillary_file_paths": [
+                    "results\\IK_test\\RobotArm\\RobotArm-10149892.pt"
+                ]
+            },
+            {
+                "steps": 10199988,
+                "file_path": "results\\IK_test\\RobotArm\\RobotArm-10199988.onnx",
+                "reward": 83.80570499195773,
+                "creation_time": 1774367022.5950508,
+                "auxillary_file_paths": [
+                    "results\\IK_test\\RobotArm\\RobotArm-10199988.pt"
+                ]
+            },
+            {
+                "steps": 10249927,
+                "file_path": "results\\IK_test\\RobotArm\\RobotArm-10249927.onnx",
+                "reward": 85.51275634765625,
+                "creation_time": 1774367072.7455568,
+                "auxillary_file_paths": [
+                    "results\\IK_test\\RobotArm\\RobotArm-10249927.pt"
+                ]
+            },
+            {
+                "steps": 10299925,
+                "file_path": "results\\IK_test\\RobotArm\\RobotArm-10299925.onnx",
+                "reward": 82.69755384196405,
+                "creation_time": 1774367117.5903873,
+                "auxillary_file_paths": [
+                    "results\\IK_test\\RobotArm\\RobotArm-10299925.pt"
+                ]
+            },
+            {
+                "steps": 10338878,
+                "file_path": "results\\IK_test\\RobotArm\\RobotArm-10338878.onnx",
+                "reward": 85.35833428830517,
+                "creation_time": 1774367160.0371656,
+                "auxillary_file_paths": [
+                    "results\\IK_test\\RobotArm\\RobotArm-10338878.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 10338878,
+            "file_path": "results\\IK_test\\RobotArm.onnx",
+            "reward": 85.35833428830517,
+            "creation_time": 1774367160.0371656,
+            "auxillary_file_paths": [
+                "results\\IK_test\\RobotArm\\RobotArm-10338878.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.0.0",
+        "torch_version": "1.13.1+cpu"
+    }
+}
